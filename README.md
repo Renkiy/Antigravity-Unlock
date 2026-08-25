@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="social_preview.png" alt="Antigravity Unlocker Banner" width="100%" />
+
 # 🚀 Antigravity Unlocker 2.0
 ### Полноценный комплекс для автономной работы Google Antigravity, Antigravity IDE и моделей Gemini в РФ без VPN
 
