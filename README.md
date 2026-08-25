@@ -9,7 +9,7 @@
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=for-the-badge)](#)
 [![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](LICENSE)
 
-[**Быстрый запуск**](#-быстрый-запуск-в-1-клик) • [**Возможности**](#-ключевые-возможности) • [**Архитектура**](#-архитектура-и-защита) • [**Обход блокировки аккаунтов**](#-обход-блокировки-российских-аккаунтов) • [**Документация**](docs/ARCHITECTURE.md) • [**FAQ**](docs/FAQ.md)
+[**Быстрый запуск**](#-быстрый-запуск-в-1-клик) • [**Возможности**](#-ключевые-возможности) • [**Архитектура**](#-архитектура-и-защита) • [**Карта кода**](docs/CODE_MAP.md) • [**Безопасность**](docs/SECURITY.md) • [**FAQ**](docs/FAQ.md)
 
 </div>
 
