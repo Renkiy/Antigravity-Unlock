@@ -262,6 +262,21 @@ class AntigravityUnlockerApp(tk.Tk):
         )
         btn_worker.pack(side="left", padx=4)
 
+        btn_github = tk.Button(
+            r2,
+            text="🚀 GitHub",
+            font=("Segoe UI", 9, "bold"),
+            bg="#24292E",
+            fg="white",
+            activebackground="#3F4448",
+            activeforeground="white",
+            relief="flat",
+            padx=10,
+            pady=5,
+            command=self.show_github_dialog
+        )
+        btn_github.pack(side="left", padx=4)
+
         btn_diag = tk.Button(
             r2,
             text="🔍 Диагностика сети",
@@ -387,6 +402,69 @@ class AntigravityUnlockerApp(tk.Tk):
 
         tk.Button(btn_f, text="💾 Применить Worker URL", bg="#2E7D32", fg="white", font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=apply_worker_url).pack(side="left")
         tk.Button(btn_f, text="🔄 Сброс на дефолт", bg="#C62828", fg="white", font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=reset_worker_url).pack(side="left", padx=10)
+        tk.Button(btn_f, text="Закрыть", bg="#37474F", fg="white", font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=dialog.destroy).pack(side="right")
+
+    def show_github_dialog(self):
+        dialog = tk.Toplevel(self)
+        dialog.title("Публикация на GitHub (Open Source)")
+        dialog.geometry("680x420")
+        dialog.configure(bg=BG_MAIN)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        tk.Label(
+            dialog,
+            text="🚀 Публикация Antigravity Unlocker на ваш GitHub",
+            font=("Segoe UI", 12, "bold"),
+            bg=BG_MAIN,
+            fg=ACCENT_BLUE
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+
+        desc = (
+            "1. Создайте пустой публичный репозиторий на github.com/new (без README/.gitignore)\n"
+            "2. Вставьте ссылку на ваш репозиторий ниже\n"
+            "3. Нажмите кнопку «Опубликовать на GitHub» — программа сама отправит все файлы!"
+        )
+        tk.Label(dialog, text=desc, font=("Segoe UI", 9), bg=BG_MAIN, fg=TEXT_MUTED, justify="left").pack(anchor="w", padx=15, pady=5)
+
+        f_url = tk.Frame(dialog, bg=BG_MAIN)
+        f_url.pack(fill="x", padx=15, pady=10)
+
+        tk.Label(f_url, text="Ссылка на ваш GitHub репозиторий (.git):", font=("Segoe UI", 10, "bold"), bg=BG_MAIN, fg=TEXT_MAIN).pack(anchor="w")
+        ent_url = tk.Entry(f_url, font=("Consolas", 10), bg=BG_CARD, fg=TEXT_MAIN, insertbackground=TEXT_MAIN)
+        ent_url.pack(fill="x", pady=5)
+        ent_url.insert(0, "https://github.com/ВАШ_ЛОГИН/antigravity-unlocker.git")
+
+        def do_publish():
+            url = ent_url.get().strip()
+            if not url.startswith("http") and not url.startswith("git@"):
+                messagebox.showerror("Ошибка", "Ссылка должна начинаться с https:// или git@")
+                return
+            dialog.destroy()
+            
+            def _push_worker():
+                self.log("\n" + "=" * 50)
+                self.log(f"🚀 Публикация проекта на GitHub ({url})...")
+                import subprocess
+                # Ensure repo and add remote
+                subprocess.run(["git", "remote", "remove", "origin"], capture_output=True)
+                subprocess.run(["git", "remote", "add", "origin", url], capture_output=True)
+                res = subprocess.run(["git", "push", "-u", "origin", "main"], capture_output=True, text=True)
+                if res.returncode == 0:
+                    self.log("🎉 [УСПЕХ] Проект успешно опубликован на GitHub!")
+                    self.log(f"  Ссылка: {url.replace('.git', '')}")
+                    self.after(100, lambda: messagebox.showinfo("Успех", f"Репозиторий успешно опубликован на GitHub!\n\n{url.replace('.git', '')}"))
+                else:
+                    self.log(f"[-] Ошибка отправки:\n{res.stderr}")
+                    self.after(100, lambda: messagebox.showerror("Ошибка публикации", f"Не удалось отправить репозиторий:\n{res.stderr}"))
+                self.log("=" * 50)
+
+            threading.Thread(target=_push_worker, daemon=True).start()
+
+        btn_f = tk.Frame(dialog, bg=BG_MAIN)
+        btn_f.pack(fill="x", padx=15, pady=15)
+
+        tk.Button(btn_f, text="🚀 Опубликовать на GitHub", bg="#2E7D32", fg="white", font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=do_publish).pack(side="left")
         tk.Button(btn_f, text="Закрыть", bg="#37474F", fg="white", font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=dialog.destroy).pack(side="right")
 
     def refresh_dashboard_async(self):
