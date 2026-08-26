@@ -1,35 +1,29 @@
 # Original User Request
 
-## Initial Request — 2026-08-26T22:22:19+09:00
+## Initial Request — 2026-08-26T13:48:46Z
 
-You are the SWE Orchestrator (teamwork_preview_swe) for this project.
+You are the Project Orchestrator (teamwork_preview_orchestrator) for Antigravity Unlocker Publication & Branding Ecosystem.
 
 Working directory: c:\Users\Rnkiy\Desktop\Анлок антигравити
-Your agent working directory: c:\Users\Rnkiy\Desktop\Анлок антигравити\.agents\swe
-Original user request file: c:\Users\Rnkiy\Desktop\Анлок антигравити\.agents\ORIGINAL_REQUEST.md
+Your agent working directory: c:\Users\Rnkiy\Desktop\Анлок антигравити\.agents\orchestrator_promo
+Target output directory: c:\Users\Rnkiy\Desktop\Анлок антигравити\docs\promo
+Original request file: c:\Users\Rnkiy\Desktop\Анлок антигравити\.agents\ORIGINAL_REQUEST.md
 
 Task:
-Исследовать и устранить блокировку авторизации Google-аккаунта на эндпоинте `antigravity.google/auth-success` в Antigravity Unlocker, расширить список проксируемых доменов аутентификации и обновить кодовую базу для 100% поддержки любых региональных профилей Google.
+Create a complete publication and branding ecosystem for Antigravity Unlocker, including three distinct, fully-written, SEO-optimized articles for Habr.com, VC.ru, and DTF.ru, an exhaustive technical comparison matrix against existing bypass solutions, and an elite personal GitHub Profile README (profile_readme/README.md).
 
-Requirements:
-### R1. Добавление веб-доменов авторизации в систему маршрутизации
-- Добавить домен `antigravity.google` и вспомогательные эндпоинты авторизации (`alkalimakersuite-pa.googleapis.com`, `aistudio.google.com`) в `PINNED_HOSTS` и `SNI_HOSTS` в `tools/proxy_manager.py`.
-- Обеспечить прохождение браузерного OAuth редиректа `https://antigravity.google/auth-success?app=antigravity` через зарубежный SNI-прокси с европейским IP, чтобы Google не видел российский IP при завершении веб-авторизации.
+All deliverables must be placed in `c:\Users\Rnkiy\Desktop\Анлок антигравити\docs\promo`:
+1. `habr_article.md` (Habr.com Technical Deep-Dive Article in Russian)
+2. `vc_article.md` (VC.ru Business & Productivity Article in Russian)
+3. `dtf_article.md` (DTF.ru Creator & Tech Community Article in Russian)
+4. `comparison_matrix.md` (Technical Comparison Matrix)
+5. `profile_readme/README.md` (Personal GitHub Profile README for Renkiy)
 
-### R2. Доработка L7 Cloudflare Worker и инструкций по аккаунтам
-- Обновить `tools/cloudflare_worker.js` для обработки домена `antigravity.google` и очистки заголовков геолокации при веб-авторизации.
-- Добавить в `docs/FAQ.md` и GUI рекомендации по смене региона платежного профиля Google (Google Payments Country) для аккаунтов с жесткой привязкой к санкционным регионам.
+Requirements & Acceptance Criteria:
+- All three articles must contain 100% complete, rich prose with zero placeholder text or unresolved TODOs.
+- Each article includes explicit SEO metadata (titles, descriptions, tags) and image placement instructions.
+- All technical explanations must faithfully reflect the actual codebase (`tools/unlocker_core.py`, `tools/pin_hosts.py`, `tools/backup_manager.py`, `tools/proxy_manager.py`, `docs/ARCHITECTURE.md`, `README.md`).
+- `comparison_matrix.md` details at least 4 competing approaches (Commercial/Free VPN, GoodbyeDPI/Zapret, HTTP/SOCKS5 Proxies, Cloudflare WARP/WireGuard) across at least 6 technical criteria with detailed explanatory analysis.
+- `profile_readme/README.md` is fully formatted in valid GitHub-Flavored Markdown with working dark-theme badges, Telegram links, tech stack badges, and featured projects spotlighting Antigravity Unlocker.
 
-### R3. Обновление GUI, CLI и пересборка релиза
-- Обновить `tools/proxy_manager.py`, `tools/unlocker_core.py`, `tools/diagnostics.py`.
-- Пересобрать standalone бинарник `release/AntigravityUnlocker.exe` с поддержкой новых доменов.
-- Закоммитить изменения в локальный Git-репозиторий.
-
-Acceptance Criteria:
-- [ ] Домен `antigravity.google` добавлен в `PINNED_HOSTS` и успешно резолвится через зарубежный прокси.
-- [ ] Веб-страница `https://antigravity.google/auth-success?app=antigravity` успешно открывается без ошибки "Sorry, this account is ineligible to use Antigravity".
-- [ ] Все 3 аккаунта пользователя могут беспрепятственно войти в Antigravity IDE.
-- [ ] Диагностика `python tools/diagnostics.py` проходит со 100% успехом по всем доменам.
-- [ ] Файл `release/AntigravityUnlocker.exe` пересобран и обновлен в репозитории.
-
-Execute your SWE loop, manage progress.md and BRIEFING.md in your working directory, and report back when finished.
+Please decompose the work, spawn specialist subagents as needed, maintain your `BRIEFING.md` and `progress.md`, verify all outputs against requirements, and report back when finished.

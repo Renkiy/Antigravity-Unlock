@@ -89,7 +89,7 @@ class AntigravityUnlockerApp(tk.Tk):
 
         title_label = tk.Label(
             header_frame, 
-            text="🚀 Antigravity Unlocker 2.0", 
+            text="🚀 Antigravity Unlocker", 
             font=("Segoe UI", 18, "bold"),
             bg=BG_MAIN, 
             fg=ACCENT_BLUE

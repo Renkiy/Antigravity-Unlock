@@ -35,7 +35,7 @@ def publish():
     # 3. Add & Commit
     print("[*] Проверка и подготовка файлов...")
     run_cmd(["git", "add", "."])
-    code, out, err = run_cmd(["git", "commit", "-m", "feat: release Antigravity Unlocker 2.0 with Smart Failover & L7 Account Bypass"], check=False)
+    code, out, err = run_cmd(["git", "commit", "-m", "feat: release Antigravity Unlocker with Smart Failover & L7 Account Bypass"], check=False)
     if "nothing to commit" in out or "nothing to commit" in err:
         print("[+] Все файлы уже закоммичены.")
     else:

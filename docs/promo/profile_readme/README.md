@@ -48,7 +48,7 @@ I build **high-performance, zero-bloat systems software**, low-level networking 
 
 <div align="center">
 
-### 🚀 [Antigravity Unlocker 2.0](https://github.com/Renkiy/antigravity-unlocker)
+### 🚀 [Antigravity Unlocker](https://github.com/Renkiy/antigravity-unlocker)
 #### *Zero-VPN, Zero-Dependency Autonomous Geoblock Bypass & AI Tooling Ecosystem for Windows*
 
 [![Zero VPN](https://img.shields.io/badge/Architecture-Zero--VPN%20Hybrid-89b4fa?style=for-the-badge&logo=cloudflare&logoColor=white)](#)
@@ -59,7 +59,7 @@ I build **high-performance, zero-bloat systems software**, low-level networking 
 
 </div>
 
-Antigravity Unlocker 2.0 solves the **August 24–25 Google Antigravity geoblock crisis** across Eastern Europe, which invalidated traditional SmartDNS and caused cascading Google Front End (GFE) resets (`10054 WSAECONNRESET`). Instead of forcing 100% of system traffic through sluggish full-tunnel VPNs, Unlocker implements a **surgical multi-tiered bypass**:
+Antigravity Unlocker solves the **August 24–25 Google Antigravity geoblock crisis** across Eastern Europe, which invalidated traditional SmartDNS and caused cascading Google Front End (GFE) resets (`10054 WSAECONNRESET`). Instead of forcing 100% of system traffic through sluggish full-tunnel VPNs, Unlocker implements a **surgical multi-tiered bypass**:
 
 ```
                               ┌─────────────────────────────────────────────────────────┐
@@ -168,7 +168,7 @@ Antigravity Unlocker 2.0 solves the **August 24–25 Google Antigravity geoblock
 
 | Project | Domain / Tech | Description | Status |
 | :--- | :--- | :--- | :--- |
-| **[Antigravity Unlocker 2.0](https://github.com/Renkiy/antigravity-unlocker)** | `Python` `WinAPI` `TLS 1.3` `PE` | Autonomous zero-VPN bypass suite for Google Antigravity & Gemini with L4 hosts pinning, length-preserving PE patcher, and auto-watchdog. | `Production Ready` |
+| **[Antigravity Unlocker](https://github.com/Renkiy/antigravity-unlocker)** | `Python` `WinAPI` `TLS 1.3` `PE` | Autonomous zero-VPN bypass suite for Google Antigravity & Gemini with L4 hosts pinning, length-preserving PE patcher, and auto-watchdog. | `Production Ready` |
 | **[FastMCP Windows Sentinel](https://github.com/Renkiy)** | `FastMCP` `Python` `Winsock2` | Model Context Protocol server enabling LLM agents to perform zero-overhead Windows network diagnostics, NRPT rules auditing, and latency scoring. | `Active` |
 | **[Userland SNI Router Core](https://github.com/Renkiy)** | `C++20` `Winsock` `Asio` | Zero-driver, anti-cheat safe L4 SNI reverse router designed for zero-latency multiplayer and selective traffic forwarding. | `Active` |
 | **[Godot 4 High-Perf ECS Engine](https://github.com/Renkiy)** | `Godot 4` `C++` `GLSL` | Data-oriented architecture framework for Godot 4 with custom spatial partitioning and compute shader particle systems. | `Open Source` |

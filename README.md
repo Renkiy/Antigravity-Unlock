@@ -2,7 +2,7 @@
 
 <img src="docs/social_preview.png" alt="Antigravity Unlocker Banner" width="100%" />
 
-# 🚀 Antigravity Unlocker 2.0
+# 🚀 Antigravity Unlocker
 ### Полноценный комплекс для автономной работы Google Antigravity, Antigravity IDE и моделей Gemini в РФ без VPN
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://microsoft.com)
@@ -64,7 +64,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│  🚀 Antigravity Unlocker 2.0            ● Права Администратора: ДА    │
+│  🚀 Antigravity Unlocker            ● Права Администратора: ДА    │
 ├────────────────────────────────────────────────────────────────────────┤
 │  [Бинарный патч]   [Привязка Hosts]   [Gemini API TLS]   [Приоритет]  │
 │  ПРОПАТЧЕН [OK]    АКТИВЕН (Hetzner)  OK (450 ms)        IPv4 > IPv6  │
@@ -109,7 +109,7 @@ flowchart LR
     GFE -->|"4. Беспрепятственный стриминг токенов"| MODELS["Gemini Flash/Pro / Claude"]
 ```
 
-### Как Antigravity Unlocker 2.0 решает это:
+### Как Antigravity Unlocker решает это:
 1. **Удаление утечек NRPT:** Скрипт очищает правила NRPT с адресами `111.88.96.50` и `83.220.169.155`.
 2. **Hosts-Pinning с наивысшим приоритетом:** Домены зафиксированы в `hosts` — операционная система физически не может отправить DNS-запрос к провайдеру.
 3. **Auto-Failover Watchdog:** Фоновый процесс проверяет здоровье узла. При сбое узел мгновенно заменяется на запасной из пула.

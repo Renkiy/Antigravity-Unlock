@@ -1,4 +1,4 @@
-﻿import math
+import math
 import random
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -171,7 +171,7 @@ def create_social_preview_template(output_path="social_preview.png"):
     draw_ui.ellipse([core_cx - 28, core_cy - 85, core_cx + 28, core_cy + 85], outline=(190, 80, 255, 200), width=3)
     
     # 5b. Pill Badge
-    pill_text = "ANTIGRAVITY UNLOCKER v2.0  •  ZERO VPN  •  PRODUCTION READY"
+    pill_text = "ANTIGRAVITY UNLOCKER  •  ZERO VPN  •  PRODUCTION READY"
     bbox = draw_ui.textbbox((0, 0), pill_text, font=font_badge)
     pw = (bbox[2] - bbox[0]) + 100
     ph = 54

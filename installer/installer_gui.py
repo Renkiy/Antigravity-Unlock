@@ -58,7 +58,7 @@ def register_in_add_remove_programs(install_dir, exe_path, uninstaller_path):
 class InstallerApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Установка Antigravity Unlocker 2.0")
+        self.title("Установка Antigravity Unlocker")
         self.geometry("620x460")
         self.resizable(False, False)
         self.configure(bg=BG_DARK)
@@ -278,7 +278,7 @@ pause
         card.pack(fill="both", expand=True, padx=25, pady=10)
 
         info = (
-            "Antigravity Unlocker 2.0 успешно установлен на ваш компьютер!\n\n"
+            "Antigravity Unlocker успешно установлен на ваш компьютер!\n\n"
             f"Папка установки: {self.install_dir.get()}\n\n"
             "Вы можете в любой момент запустить программу с Рабочего стола,\n"
             "из меню «Пуск» или удалить через стандартную «Установку и удаление программ» Windows."

@@ -20,17 +20,17 @@ tags:
   - "zero-vpn"
   - "sni proxy"
   - "cloudflare workers"
-meta_description: "Исчерпывающий технический разбор инцидента 24–25 августа 2026 года в Google Antigravity: почему упал SmartDNS, как устроена трёхуровневая система фильтрации Google (L4/L7/Client), инженерия 10-байтного бинарного патча Language Server, Hosts Pinning и разработка Zero-VPN утилиты Antigravity Unlocker 2.0."
+meta_description: "Исчерпывающий технический разбор инцидента 24–25 августа 2026 года в Google Antigravity: почему упал SmartDNS, как устроена трёхуровневая система фильтрации Google (L4/L7/Client), инженерия 10-байтного бинарного патча Language Server, Hosts Pinning и разработка Zero-VPN утилиты Antigravity Unlocker."
 cover_image:
   prompt: "A high-tech cyberpunk schematic depicting selective network routing, Windows Winsock stack, glowing TLS 1.3 packets routing through Frankfurt Hetzner nodes, hex editor disassembly showing PE binary modification, Catppuccin Mocha aesthetic with deep purple, blue and emerald accents, 8k resolution, technical overlay."
-  alt: "Архитектурная схема избирательной маршрутизации и бинарного патчинга Antigravity Unlocker 2.0"
+  alt: "Архитектурная схема избирательной маршрутизации и бинарного патчинга Antigravity Unlocker"
 ---
 
 # Анатомия геоблокировок Google Antigravity: от сбоя SmartDNS до 10-байтного патча PE, Anti-Leak Hosts Pinning и Zero-VPN архитектуры
 
 > **TL;DR:** 24–25 августа 2026 года тысячи разработчиков в РФ и РБ столкнулись с внезапным падением Google Antigravity IDE, CLI-агента `agy` и языкового сервера `language_server.exe` с ошибками `10054 WSAECONNRESET` и `FAILED_PRECONDITION: User location is not supported`. Причиной стал каскадный сбой публичных SmartDNS-резолверов и утечка DNS-запросов на пограничные серверы Google в РФ через механизм fallback в Windows.
 > 
-> В этой статье мы проведем глубокий реверс-инжиниринг клиентского Language Server, разберем трехуровневую систему фильтрации Google (L4 Geo-IP ➔ Client PE Protobuf ➔ L7 `:loadCodeAssist`), покажем, как 10-байтный длина-сохраняющий патч (`ineligible` ➔ `inexigible`) обходит валидацию без повреждения структуры секций Portable Executable, и спроектируем архитектуру **Antigravity Unlocker 2.0** — открытой утилиты с избирательной маршрутизацией (**Zero-VPN**), атомарным Hosts Pinning и фоновым демоном авто-переключения узлов (Auto-Failover Watchdog).
+> В этой статье мы проведем глубокий реверс-инжиниринг клиентского Language Server, разберем трехуровневую систему фильтрации Google (L4 Geo-IP ➔ Client PE Protobuf ➔ L7 `:loadCodeAssist`), покажем, как 10-байтный длина-сохраняющий патч (`ineligible` ➔ `inexigible`) обходит валидацию без повреждения структуры секций Portable Executable, и спроектируем архитектуру **Antigravity Unlocker** — открытой утилиты с избирательной маршрутизацией (**Zero-VPN**), атомарным Hosts Pinning и фоновым демоном авто-переключения узлов (Auto-Failover Watchdog).
 
 ---
 
@@ -38,7 +38,7 @@ cover_image:
 [VISUAL CALLOUT: COVER_DIAGRAM]
 Image Prompt: "Dark tech banner with Catppuccin Mocha palette (#1E1E2E, #89B4FA, #A6E3A1). On the left: fragmented network packets and a Windows DNS resolver leaking into a blocked Russian edge node. In the center: a glowing Zero-VPN routing switch directing LLM gRPC streams to Frankfurt and Amsterdam SNI relays. On the right: a binary disassembly view showing a 10-byte hex replacement from 'ineligible' to 'inexigible' with preserved PE headers."
 Caption: "Архитектурный ландшафт решения: локализация инцидента DNS-утечки, обход трехуровневого барьера Google и инженерия Zero-VPN."
-Alt Text: "Архитектурный ландшафт Antigravity Unlocker 2.0"
+Alt Text: "Архитектурный ландшафт Antigravity Unlocker"
 ```
 
 ---
@@ -162,9 +162,9 @@ Google Front End (GFE/ESF)           Языковой сервер (Language Ser
 
 ---
 
-## 3. Архитектура Antigravity Unlocker 2.0: Парадигма Zero-VPN
+## 3. Архитектура Antigravity Unlocker: Парадигма Zero-VPN
 
-Вместо использования тяжелых полнотуннельных VPN, заворачивающих 100% трафика системы и создающих колоссальные накладные расходы, комплекс **Antigravity Unlocker 2.0** реализует парадигму **Targeted Selective Hybrid Routing (Zero-VPN)**.
+Вместо использования тяжелых полнотуннельных VPN, заворачивающих 100% трафика системы и создающих колоссальные накладные расходы, комплекс **Antigravity Unlocker** реализует парадигму **Targeted Selective Hybrid Routing (Zero-VPN)**.
 
 ```mermaid
 flowchart TD
@@ -269,7 +269,7 @@ Clear-DnsClientCache;
 #### Приоритет IPv4 над IPv6
 Многие интернет-провайдеры предоставляют нативный IPv6, имеющий по умолчанию более высокий приоритет по RFC 6724. Это приводит к тому, что клиент запрашивает `AAAA`-записи и уходит на IPv6-адреса Google (`2a00:1450:...`), минуя IPv4-записи `hosts`. 
 
-Unlocker 2.0 динамически корректирует метрику префиксных политик Windows:
+Unlocker динамически корректирует метрику префиксных политик Windows:
 ```powershell
 # Установка наивысшего приоритета для IPv4-mapped адресов (Precedence = 46)
 netsh interface ipv6 set prefixpolicy ::ffff:0:0/96 46 4
@@ -470,12 +470,12 @@ export default {
 [VISUAL CALLOUT: BENCHMARK_CHART]
 Image Prompt: "High-contrast technical bar chart comparison. Metric 1: Download Throughput (Antigravity Unlocker 940 Mbps vs OpenVPN 95 Mbps vs VLESS 380 Mbps). Metric 2: Gaming Latency (Antigravity Unlocker 4 ms vs OpenVPN 120 ms). Metric 3: Time-to-First-Token (Antigravity Unlocker 380 ms vs VPN 1450 ms). Dark Catppuccin Mocha aesthetic."
 Caption: "Сравнительные бенчмарки пропускной способности, задержки и времени генерации первого токена (TTFT)."
-Alt Text: "Бенчмарки производительности Antigravity Unlocker 2.0"
+Alt Text: "Бенчмарки производительности Antigravity Unlocker"
 ```
 
 ### Сводная таблица сравнительного тестирования:
 
-| Параметр / Метрика | Antigravity Unlocker 2.0 | Full-Tunnel VPN (WireGuard / OpenVPN) | Self-Hosted VLESS (XTLS-Reality) | L7 DPI Desync (GoodbyeDPI) | Cloudflare WARP |
+| Параметр / Метрика | Antigravity Unlocker | Full-Tunnel VPN (WireGuard / OpenVPN) | Self-Hosted VLESS (XTLS-Reality) | L7 DPI Desync (GoodbyeDPI) | Cloudflare WARP |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Пропускная способность (Direct)** | **940 Mbps (100% канала)** | 95 – 220 Mbps (-75%) | 380 Mbps (-60%) | 935 Mbps | 180 – 240 Mbps |
 | **Игровой пинг (CS2 / Dota2)** | **4 мс (Прямой BGP)** | 115 – 140 мс (+110 мс) | 75 – 95 мс (+70 мс) | 4 мс | 65 – 85 мс |
@@ -496,8 +496,8 @@ Alt Text: "Бенчмарки производительности Antigravity U
 ```
 [VISUAL CALLOUT: GUI_SCREENSHOT]
 Image Prompt: "Modern desktop application window with Catppuccin Mocha dark theme (#1E1E2E background). Header with glowing logo '⚡ ANTIGRAVITY UNLOCKER 2.0'. Four status cards: [PE Patch: ПРОПАТЧЕН OK (Green)], [Hosts Pin: 94.130.180.225 (Green)], [TLS Latency: 42 ms (Green)], [IPv4 Policy: АКТИВЕН (Green)]. Large central button '⚡ АКТИВИРОВАТЬ АНЛОК', secondary buttons for Backup, Rollback, Fast Proxy Search and Watchdog toggle."
-Caption: "Графический интерфейс управления Antigravity Unlocker 2.0 на Tkinter (тема Catppuccin Mocha)."
-Alt Text: "Интерфейс программы Antigravity Unlocker 2.0"
+Caption: "Графический интерфейс управления Antigravity Unlocker на Tkinter (тема Catppuccin Mocha)."
+Alt Text: "Интерфейс программы Antigravity Unlocker"
 ```
 
 1. Запустите `Запустить_Анлокер.bat` или `release/AntigravityUnlocker.exe` от имени Администратора.
@@ -559,7 +559,7 @@ def restore_system() -> str:
 В духе инженерной культуры Habr важно честно зафиксировать технические ограничения архитектуры:
 1. **Необходимость прав Администратора (UAC):** Модификация `%SystemRoot%\System32\drivers\etc\hosts` и изменение сетевых политик `netsh` требуют повышенных привилегий. Утилита запрашивает UAC только при выполнении операций записи.
 2. **Специализация на Google AI экосистеме:** Antigravity Unlocker не является заменой GoodbyeDPI или VPN для серфинга заблокированных веб-сайтов. Он изолированно решает задачу работы сред разработки и моделей ИИ.
-3. **Обновления Language Server:** При выходе мажорных обновлений Antigravity IDE новый бинарник `language_server.exe` перезаписывается установщиком Google. Unlocker 2.0 достаточно запустить повторно в 1 клик для наложения 10-байтного патча на обновленный файл.
+3. **Обновления Language Server:** При выходе мажорных обновлений Antigravity IDE новый бинарник `language_server.exe` перезаписывается установщиком Google. Unlocker достаточно запустить повторно в 1 клик для наложения 10-байтного патча на обновленный файл.
 
 ---
 
@@ -567,7 +567,7 @@ def restore_system() -> str:
 
 Инцидент 24–25 августа наглядно показал, что эпоха примитивных решений с публичными DNS ушла в прошлое. Современные инструменты разработки требуют комплексного, архитектурно выверенного подхода: от изоляции сетевого стека до побайтовой совместимости бинарных структур.
 
-Проект **Antigravity Unlocker 2.0** полностью открыт под свободной лицензией MIT.
+Проект **Antigravity Unlocker** полностью открыт под свободной лицензией MIT.
 
 * **GitHub Репозиторий:** [https://github.com/Renkiy/Antigravity-Unlock](https://github.com/Renkiy/Antigravity-Unlock)
 * **Готовые релизы (.exe):** [Releases на GitHub](https://github.com/Renkiy/Antigravity-Unlock/releases)
