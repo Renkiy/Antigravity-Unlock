@@ -42,9 +42,17 @@
 
 ## 🖥️ Быстрый запуск в 1 клик
 
-### 📦 Вариант 1: Готовый Standalone `.exe` (Без установки Python)
-Скачайте готовый исполняемый файл из папки **[`release/AntigravityUnlocker.exe`](release/AntigravityUnlocker.exe)** (или раздела [Releases](https://github.com)):
-1. Запустите **`AntigravityUnlocker.exe`** (он автоматически запросит права Администратора через встроенный манифест UAC).
+### 🛠️ Вариант 1: Официальный Установщик Windows (Setup Installer)
+Скачайте готовый установщик **[`release/AntigravityUnlocker_Setup.exe`](release/AntigravityUnlocker_Setup.exe)**:
+1. Запустите `AntigravityUnlocker_Setup.exe`.
+2. Следуйте подсказкам мастера (он автоматически создаст ярлыки на Рабочем столе и в меню «Пуск», а также зарегистрирует программу в Windows).
+3. Нажмите **«⚡ АКТИВИРОВАТЬ АНЛОК»** при первом запуске!
+
+---
+
+### 📦 Вариант 2: Портативный Standalone `.exe` (Без установки)
+Скачайте готовый исполняемый файл **[`release/AntigravityUnlocker.exe`](release/AntigravityUnlocker.exe)**:
+1. Запустите `AntigravityUnlocker.exe` (он автоматически запросит права Администратора через встроенный манифест UAC).
 2. Нажмите **«⚡ АКТИВИРОВАТЬ АНЛОК»**.
 
 ---
