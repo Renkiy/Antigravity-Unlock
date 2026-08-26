@@ -25,7 +25,8 @@ SNI_HOSTS = [
     "cloudcode-pa.googleapis.com",
     "generativelanguage.googleapis.com",
     "daily-cloudcode-pa.googleapis.com",
-    "antigravity-unleash.goog"
+    "antigravity-unleash.goog",
+    "antigravity.google"
 ]
 
 PINNED_HOSTS = [
@@ -34,7 +35,10 @@ PINNED_HOSTS = [
     "generativelanguage.googleapis.com",
     "antigravity-unleash.goog",
     "cloudaicompanion.googleapis.com",
-    "jetski-webchannel.googleapis.com"
+    "jetski-webchannel.googleapis.com",
+    "antigravity.google",
+    "alkalimakersuite-pa.googleapis.com",
+    "aistudio.google.com"
 ]
 
 HOSTS_PATH = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc", "hosts")

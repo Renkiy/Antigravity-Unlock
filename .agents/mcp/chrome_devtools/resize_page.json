@@ -1,0 +1,1 @@
+{"name":"resize_page","description":"Resizes the selected page's window so that the page has specified dimension","parameters":{"$schema":"http://json-schema.org/draft-07/schema#","additionalProperties":true,"properties":{"height":{"description":"Page height","type":"number"},"width":{"description":"Page width","type":"number"}},"required":["width","height"],"type":"object"}}

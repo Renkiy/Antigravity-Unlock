@@ -5,6 +5,13 @@ import subprocess
 import json
 import time
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 from tools.backup_manager import create_backup, restore_backup, list_backups
 from tools.proxy_manager import (
     find_best_proxy, pin_hosts, unpin_hosts, get_current_pinned_ip,

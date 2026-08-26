@@ -12,6 +12,7 @@ if sys.platform == "win32":
         pass
 
 TARGET_DOMAINS = [
+    "antigravity.google",
     "cloudcode-pa.googleapis.com",
     "generativelanguage.googleapis.com",
     "daily-cloudcode-pa.googleapis.com",
