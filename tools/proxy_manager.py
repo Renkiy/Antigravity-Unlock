@@ -7,25 +7,27 @@ import subprocess
 import threading
 import concurrent.futures
 
+import platform
+
 # Проверенный и актуальный пул стабильных зарубежных SNI-прокси (Германия, Нидерланды)
 # Исключены нестабильные и отключенные узлы (111.88.96.50, 95.182.120.241, 45.155.204.190)
 PROXIES_POOL = [
+    {"name": "comss-node-nl-3",   "ip": "45.88.174.252",  "country": "NL"},
+    {"name": "comss-node-nl-1",   "ip": "45.88.174.254",  "country": "NL"},
+    {"name": "comss-node-nl-2",   "ip": "45.88.174.253",  "country": "NL"},
+    {"name": "comss-node-nl-4",   "ip": "45.88.174.251",  "country": "NL"},
     {"name": "hetzner-node-de-1", "ip": "94.130.180.225", "country": "DE"},
     {"name": "hetzner-node-de-2", "ip": "148.251.10.155", "country": "DE"},
     {"name": "hetzner-node-de-3", "ip": "188.40.142.18",  "country": "DE"},
     {"name": "hetzner-node-de-4", "ip": "136.243.104.148", "country": "DE"},
     {"name": "hetzner-node-de-5", "ip": "168.119.141.192", "country": "DE"},
-    {"name": "comss-node-nl-1",   "ip": "45.88.174.254",  "country": "NL"},
-    {"name": "comss-node-nl-2",   "ip": "45.88.174.253",  "country": "NL"},
-    {"name": "comss-node-nl-3",   "ip": "45.88.174.252",  "country": "NL"},
-    {"name": "comss-node-nl-4",   "ip": "45.88.174.251",  "country": "NL"},
 ]
 
 SNI_HOSTS = [
     "cloudcode-pa.googleapis.com",
     "generativelanguage.googleapis.com",
     "daily-cloudcode-pa.googleapis.com",
-    "antigravity-unleash.goog",
+    "cloudaicompanion.googleapis.com",
     "antigravity.google"
 ]
 
@@ -41,9 +43,35 @@ PINNED_HOSTS = [
     "aistudio.google.com"
 ]
 
-HOSTS_PATH = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc", "hosts")
+def get_hosts_path():
+    if sys.platform == "win32":
+        return os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc", "hosts")
+    return "/etc/hosts"
+
+HOSTS_PATH = get_hosts_path()
 BEGIN_MARKER = "# === ANTIGRAVITY_UNLOCKER_PIN_START ==="
 END_MARKER = "# === ANTIGRAVITY_UNLOCKER_PIN_END ==="
+
+def flush_dns_cache():
+    """Кроссплатформенный сброс системного кэша DNS."""
+    if sys.platform == "darwin":
+        subprocess.run(["dscacheutil", "-flushcache"], capture_output=True)
+        subprocess.run(["killall", "-HUP", "mDNSResponder"], capture_output=True)
+    elif sys.platform == "win32":
+        subprocess.run(["ipconfig", "/flushdns"], capture_output=True)
+    else:
+        # Linux
+        for cmd in [
+            ["resolvectl", "flush-caches"],
+            ["systemd-resolve", "--flush-caches"],
+            ["service", "nscd", "restart"]
+        ]:
+            try:
+                res = subprocess.run(cmd, capture_output=True)
+                if res.returncode == 0:
+                    break
+            except Exception:
+                pass
 
 def probe_single_host(ip, host_name, timeout=2.5):
     """Проверка TCP соединения и валидности TLS 443 рукопожатия с указанным SNI."""
@@ -126,9 +154,11 @@ def find_best_proxy(verbose=True, timeout=2.0):
 
 def clean_leaking_nrpt_rules():
     """
-    Удаление опасных правил NRPT (включая 111.88.96.50, comss и старые правила AG_UNLOCKER),
-    чтобы исключить каскадную утечку запросов в прямой российский IP при таймаутах.
+    Удаление опасных правил NRPT (Windows Only).
     """
+    if sys.platform != "win32":
+        return True
+
     ps_cmd = """
     Get-DnsClientNrptRule -ErrorAction SilentlyContinue | 
         Where-Object { 
@@ -146,7 +176,7 @@ def clean_leaking_nrpt_rules():
     except Exception:
         return False
 
-def pin_hosts(ip="94.130.180.225"):
+def pin_hosts(ip="45.88.174.252"):
     """Закрепление хостов Antigravity/Gemini в системном файле hosts."""
     try:
         with open(HOSTS_PATH, "r", encoding="utf-8", errors="ignore") as f:
@@ -179,10 +209,10 @@ def pin_hosts(ip="94.130.180.225"):
             f.write(new_content)
         # Очистка опасных NRPT правил и сброс кэша
         clean_leaking_nrpt_rules()
-        subprocess.run(["ipconfig", "/flushdns"], capture_output=True)
+        flush_dns_cache()
         return True, f"Хосты успешно привязаны к {ip} (DNS кэш очищен)"
     except PermissionError:
-        return False, "Отказано в доступе (требуются права Администратора)"
+        return False, "Отказано в доступе (требуются права Администратора / sudo)"
     except Exception as e:
         return False, f"Ошибка записи hosts: {e}"
 
@@ -211,10 +241,10 @@ def unpin_hosts():
         with open(HOSTS_PATH, "w", encoding="utf-8") as f:
             f.write(new_content)
         clean_leaking_nrpt_rules()
-        subprocess.run(["ipconfig", "/flushdns"], capture_output=True)
+        flush_dns_cache()
         return True, "Привязки успешно удалены из hosts"
     except PermissionError:
-        return False, "Отказано в доступе (требуются права Администратора)"
+        return False, "Отказано в доступе (требуются права Администратора / sudo)"
     except Exception as e:
         return False, f"Ошибка записи hosts: {e}"
 
