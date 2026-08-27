@@ -1,9 +1,10 @@
 import os
 import sys
 import threading
+import queue
 import time
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox
 
 # Ensure tools directory in path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,130 +23,202 @@ from tools.proxy_manager import (
 )
 from tools.backup_manager import create_backup, restore_backup, list_backups
 
-# Colors - Catppuccin Mocha inspired Dark Theme
+# Colors - Catppuccin Mocha Dark Theme
 BG_MAIN = "#1E1E2E"
 BG_CARD = "#252538"
-BG_CARD_BORDER = "#313244"
-BG_CONSOLE = "#181825"
-TEXT_MAIN = "#CDD6F4"
-TEXT_MUTED = "#A6ADC8"
+BG_CARD_BORDER = "#45475A"
+BG_CONSOLE = "#11111B"
+TEXT_WHITE = "#FFFFFF"
+TEXT_MUTED = "#BAC2DE"
 ACCENT_BLUE = "#89B4FA"
 ACCENT_GREEN = "#A6E3A1"
 ACCENT_RED = "#F38BA8"
 ACCENT_YELLOW = "#F9E2AF"
 ACCENT_PURPLE = "#CBA6F7"
 
+# Typography
+if sys.platform == "darwin":
+    FONT_FAMILY = "Helvetica"
+    FONT_MONO = "Menlo"
+elif sys.platform == "win32":
+    FONT_FAMILY = "Segoe UI"
+    FONT_MONO = "Consolas"
+else:
+    FONT_FAMILY = "DejaVu Sans"
+    FONT_MONO = "Monospace"
+
+class CanvasLabel(tk.Canvas):
+    """
+    Кроссплатформенный Label на базе Canvas CoreGraphics.
+    Гарантирует 100% видимость и отрисовку любого цвета текста на macOS (включая Dark Mode Tk 8.5).
+    """
+    def __init__(self, parent, text="", font_spec=(FONT_FAMILY, 10), fg=TEXT_WHITE, bg=BG_MAIN, height=22, anchor="w", **kwargs):
+        super().__init__(parent, bg=bg, highlightthickness=0, bd=0, height=height, **kwargs)
+        self._text = text
+        self._font = font_spec
+        self._fg = fg
+        self._anchor = anchor
+        self._item = self.create_text(4, height // 2, text=text, font=font_spec, fill=fg, anchor=anchor)
+        self.bind("<Configure>", self._on_resize)
+
+    def _on_resize(self, event):
+        y = event.height // 2
+        x = 4 if self._anchor == "w" else (event.width - 4 if self._anchor == "e" else event.width // 2)
+        self.coords(self._item, x, y)
+
+    def config(self, **kwargs):
+        if "text" in kwargs:
+            self._text = kwargs["text"]
+            self.itemconfig(self._item, text=kwargs["text"])
+        if "fg" in kwargs:
+            self._fg = kwargs["fg"]
+            self.itemconfig(self._item, fill=kwargs["fg"])
+        if "foreground" in kwargs:
+            self._fg = kwargs["foreground"]
+            self.itemconfig(self._item, fill=kwargs["foreground"])
+        if "bg" in kwargs:
+            super().config(bg=kwargs["bg"])
+        if "background" in kwargs:
+            super().config(bg=kwargs["background"])
+
+    def cget(self, key):
+        if key in ("text",):
+            return self._text
+        if key in ("fg", "foreground"):
+            return self._fg
+        return super().cget(key)
+
 class AntigravityUnlockerApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Antigravity Unlocker — Работа в РФ без VPN")
-        self.geometry("900x680")
-        self.minsize(800, 600)
+        self.geometry("920x700")
+        self.minsize(820, 620)
         self.configure(bg=BG_MAIN)
 
-        # Style configuration
-        self.setup_styles()
-        
+        # Thread-safe event queue
+        self.msg_queue = queue.Queue()
+
         # UI Elements
         self.create_header()
         self.create_dashboard()
         self.create_action_buttons()
         self.create_console()
 
-        # Start initial status check
+        # Start queue processor on main thread
+        self.poll_queue()
+
+        # Initial check
         self.log("[*] Запуск интерфейса Antigravity Unlocker...")
         self.check_admin_status()
         self.refresh_dashboard_async()
 
-    def setup_styles(self):
-        self.style = ttk.Style()
-        self.style.theme_use("clam")
+    def poll_queue(self):
+        """Единый диспетчер очереди сообщений в главном потоке GUI."""
+        while not self.msg_queue.empty():
+            try:
+                msg_type, payload = self.msg_queue.get_nowait()
+                if msg_type == "log":
+                    self._do_log(payload)
+                elif msg_type == "dashboard":
+                    self._apply_dashboard_state(*payload)
+                elif msg_type == "msgbox_info":
+                    title, text = payload
+                    messagebox.showinfo(title, text)
+                elif msg_type == "msgbox_error":
+                    title, text = payload
+                    messagebox.showerror(title, text)
+                elif msg_type == "watchdog_btn":
+                    btn_text = payload
+                    self.btn_watchdog.config(text=btn_text)
+            except Exception:
+                pass
+        self.after(80, self.poll_queue)
 
-        self.style.configure("TFrame", background=BG_MAIN)
-        self.style.configure("Card.TFrame", background=BG_CARD, relief="solid", borderwidth=1)
-        self.style.configure("TLabel", background=BG_MAIN, foreground=TEXT_MAIN, font=("Segoe UI", 10))
-        self.style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"), foreground=ACCENT_BLUE)
-        self.style.configure("CardTitle.TLabel", font=("Segoe UI", 11, "bold"), background=BG_CARD, foreground=TEXT_MUTED)
-        self.style.configure("CardValue.TLabel", font=("Segoe UI", 12, "bold"), background=BG_CARD, foreground=TEXT_MAIN)
+    def log(self, text):
+        """Безопасная отправка лога из любого потока."""
+        self.msg_queue.put(("log", text))
 
-    def log(self, text, color=None):
-        self.console.config(state="normal")
+    def _do_log(self, text):
         ts = time.strftime("[%H:%M:%S] ")
         self.console.insert(tk.END, ts + text + "\n")
         self.console.see(tk.END)
-        self.console.config(state="disabled")
 
     def check_admin_status(self):
         if is_admin():
-            self.admin_badge.config(text="● Права Администратора: ДА", foreground=ACCENT_GREEN)
-            self.log("[+] Приложение запущено с правами Администратора.")
+            self.admin_badge.config(text="● Права Администратора: ДА", fg=ACCENT_GREEN)
+            self.log("[+] Приложение запущено с правами Администратора / root.")
         else:
-            self.admin_badge.config(text="● Права Администратора: НЕТ", foreground=ACCENT_RED)
-            self.log("[!] Внимание: Для изменения hosts и NRPT требуются права Администратора.")
+            self.admin_badge.config(text="● Права Администратора: НЕТ", fg=ACCENT_RED)
+            self.log("[!] Внимание: Для изменения hosts требуются права Администратора / sudo.")
 
     def create_header(self):
-        header_frame = tk.Frame(self, bg=BG_MAIN, pady=10, padx=20)
-        header_frame.pack(fill="x")
+        header_frame = tk.Frame(self, bg=BG_MAIN, pady=12, padx=20)
+        header_frame.pack(side="top", fill="x")
 
-        title_label = tk.Label(
+        title_label = CanvasLabel(
             header_frame, 
             text="🚀 Antigravity Unlocker", 
-            font=("Segoe UI", 18, "bold"),
+            font_spec=(FONT_FAMILY, 18, "bold"),
             bg=BG_MAIN, 
-            fg=ACCENT_BLUE
+            fg=ACCENT_BLUE,
+            height=30,
+            width=320
         )
         title_label.pack(side="left")
 
-        self.admin_badge = tk.Label(
+        self.admin_badge = CanvasLabel(
             header_frame,
             text="● Проверка прав...",
-            font=("Segoe UI", 10, "bold"),
+            font_spec=(FONT_FAMILY, 10, "bold"),
             bg=BG_MAIN,
-            fg=ACCENT_YELLOW
+            fg=ACCENT_YELLOW,
+            height=30,
+            width=260,
+            anchor="e"
         )
         self.admin_badge.pack(side="right")
 
     def create_dashboard(self):
         dash_frame = tk.Frame(self, bg=BG_MAIN, padx=20, pady=5)
-        dash_frame.pack(fill="x")
+        dash_frame.pack(side="top", fill="x")
 
-        # 4 Cards: LSP Patch, Hosts Pin, Live Proxy Ping, IPv4 Precedence
         dash_frame.columnconfigure(0, weight=1)
         dash_frame.columnconfigure(1, weight=1)
         dash_frame.columnconfigure(2, weight=1)
         dash_frame.columnconfigure(3, weight=1)
 
         # Card 1: Binary Patch
-        c1 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, highlightbackground=BG_CARD_BORDER, highlightthickness=1)
-        c1.grid(row=0, column=0, padx=5, sticky="nsew")
-        tk.Label(c1, text="Бинарный патч", font=("Segoe UI", 9), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w")
-        self.lbl_patch_status = tk.Label(c1, text="Проверка...", font=("Segoe UI", 11, "bold"), bg=BG_CARD, fg=ACCENT_YELLOW)
-        self.lbl_patch_status.pack(anchor="w", pady=(4, 0))
+        c1 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, relief="solid", bd=1, highlightbackground=BG_CARD_BORDER, highlightcolor=BG_CARD_BORDER)
+        c1.grid(row=0, column=0, padx=4, sticky="nsew")
+        CanvasLabel(c1, text="Бинарный патч", font_spec=(FONT_FAMILY, 9), bg=BG_CARD, fg=TEXT_MUTED, height=18).pack(fill="x")
+        self.lbl_patch_status = CanvasLabel(c1, text="Проверка...", font_spec=(FONT_FAMILY, 11, "bold"), bg=BG_CARD, fg=ACCENT_YELLOW, height=22)
+        self.lbl_patch_status.pack(fill="x", pady=(2, 0))
 
         # Card 2: Hosts Pin
-        c2 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, highlightbackground=BG_CARD_BORDER, highlightthickness=1)
-        c2.grid(row=0, column=1, padx=5, sticky="nsew")
-        tk.Label(c2, text="Привязка Hosts", font=("Segoe UI", 9), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w")
-        self.lbl_hosts_status = tk.Label(c2, text="Проверка...", font=("Segoe UI", 11, "bold"), bg=BG_CARD, fg=ACCENT_YELLOW)
-        self.lbl_hosts_status.pack(anchor="w", pady=(4, 0))
+        c2 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, relief="solid", bd=1, highlightbackground=BG_CARD_BORDER, highlightcolor=BG_CARD_BORDER)
+        c2.grid(row=0, column=1, padx=4, sticky="nsew")
+        CanvasLabel(c2, text="Привязка Hosts", font_spec=(FONT_FAMILY, 9), bg=BG_CARD, fg=TEXT_MUTED, height=18).pack(fill="x")
+        self.lbl_hosts_status = CanvasLabel(c2, text="Проверка...", font_spec=(FONT_FAMILY, 11, "bold"), bg=BG_CARD, fg=ACCENT_YELLOW, height=22)
+        self.lbl_hosts_status.pack(fill="x", pady=(2, 0))
 
         # Card 3: Ping Gemini API
-        c3 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, highlightbackground=BG_CARD_BORDER, highlightthickness=1)
-        c3.grid(row=0, column=2, padx=5, sticky="nsew")
-        tk.Label(c3, text="Gemini API TLS", font=("Segoe UI", 9), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w")
-        self.lbl_ping_status = tk.Label(c3, text="Тестирование...", font=("Segoe UI", 11, "bold"), bg=BG_CARD, fg=ACCENT_YELLOW)
-        self.lbl_ping_status.pack(anchor="w", pady=(4, 0))
+        c3 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, relief="solid", bd=1, highlightbackground=BG_CARD_BORDER, highlightcolor=BG_CARD_BORDER)
+        c3.grid(row=0, column=2, padx=4, sticky="nsew")
+        CanvasLabel(c3, text="Gemini API TLS", font_spec=(FONT_FAMILY, 9), bg=BG_CARD, fg=TEXT_MUTED, height=18).pack(fill="x")
+        self.lbl_ping_status = CanvasLabel(c3, text="Тестирование...", font_spec=(FONT_FAMILY, 11, "bold"), bg=BG_CARD, fg=ACCENT_YELLOW, height=22)
+        self.lbl_ping_status.pack(fill="x", pady=(2, 0))
 
         # Card 4: IPv4 Priority
-        c4 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, highlightbackground=BG_CARD_BORDER, highlightthickness=1)
-        c4.grid(row=0, column=3, padx=5, sticky="nsew")
-        tk.Label(c4, text="Приоритет IPv4", font=("Segoe UI", 9), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w")
-        self.lbl_ipv4_status = tk.Label(c4, text="Активен", font=("Segoe UI", 11, "bold"), bg=BG_CARD, fg=ACCENT_GREEN)
-        self.lbl_ipv4_status.pack(anchor="w", pady=(4, 0))
+        c4 = tk.Frame(dash_frame, bg=BG_CARD, padx=12, pady=10, relief="solid", bd=1, highlightbackground=BG_CARD_BORDER, highlightcolor=BG_CARD_BORDER)
+        c4.grid(row=0, column=3, padx=4, sticky="nsew")
+        CanvasLabel(c4, text="Статус DNS / Сети", font_spec=(FONT_FAMILY, 9), bg=BG_CARD, fg=TEXT_MUTED, height=18).pack(fill="x")
+        self.lbl_ipv4_status = CanvasLabel(c4, text="Активен", font_spec=(FONT_FAMILY, 11, "bold"), bg=BG_CARD, fg=ACCENT_GREEN, height=22)
+        self.lbl_ipv4_status.pack(fill="x", pady=(2, 0))
 
     def create_action_buttons(self):
-        btn_frame = tk.Frame(self, bg=BG_MAIN, padx=20, pady=10)
-        btn_frame.pack(fill="x")
+        btn_frame = tk.Frame(self, bg=BG_MAIN, padx=20, pady=8)
+        btn_frame.pack(side="top", fill="x")
 
         # Row 1 Main Buttons
         r1 = tk.Frame(btn_frame, bg=BG_MAIN)
@@ -153,228 +226,169 @@ class AntigravityUnlockerApp(tk.Tk):
 
         btn_unlock = tk.Button(
             r1,
-            text="⚡ АКТИВИРОВАТЬ АНЛОК (Вариант Б + Авто-прокси)",
-            font=("Segoe UI", 11, "bold"),
-            bg="#2E7D32",
-            fg="white",
-            activebackground="#388E3C",
-            activeforeground="white",
-            relief="flat",
-            padx=15,
-            pady=8,
-            cursor="hand2",
+            text="⚡ АКТИВИРОВАТЬ АНЛОК (Авто-прокси + Патч + CodeSign)",
+            font=(FONT_FAMILY, 11, "bold"),
+            highlightbackground=BG_MAIN,
             command=self.run_unlock_thread
         )
         btn_unlock.pack(side="left", fill="x", expand=True, padx=(0, 5))
 
         btn_rollback = tk.Button(
             r1,
-            text="🔄 ПОЛНЫЙ ОТКАТ (Rollback)",
-            font=("Segoe UI", 10, "bold"),
-            bg="#C62828",
-            fg="white",
-            activebackground="#D32F2F",
-            activeforeground="white",
-            relief="flat",
-            padx=12,
-            pady=8,
-            cursor="hand2",
+            text="🔄 ПОЛНЫЙ ОТКАТ (Restore)",
+            font=(FONT_FAMILY, 10, "bold"),
+            highlightbackground=BG_MAIN,
             command=self.run_rollback_thread
         )
         btn_rollback.pack(side="right", padx=(5, 0))
 
         # Row 2 Utility Buttons
         r2 = tk.Frame(btn_frame, bg=BG_MAIN)
-        r2.pack(fill="x", pady=5)
+        r2.pack(fill="x", pady=4)
 
         btn_backup = tk.Button(
             r2,
             text="🛡️ Создать бэкап",
-            font=("Segoe UI", 9, "bold"),
-            bg="#37474F",
-            fg=TEXT_MAIN,
-            activebackground="#455A64",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
             command=self.run_backup_thread
         )
-        btn_backup.pack(side="left", padx=(0, 4))
+        btn_backup.pack(side="left", padx=(0, 3))
 
         btn_backups_list = tk.Button(
             r2,
             text="📁 Список бэкапов",
-            font=("Segoe UI", 9),
-            bg="#37474F",
-            fg=TEXT_MAIN,
-            activebackground="#455A64",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
             command=self.show_backups_dialog
         )
-        btn_backups_list.pack(side="left", padx=4)
+        btn_backups_list.pack(side="left", padx=3)
 
         btn_find_proxy = tk.Button(
             r2,
-            text="⚡ Найти быстрый прокси",
-            font=("Segoe UI", 9),
-            bg="#37474F",
-            fg=TEXT_MAIN,
-            activebackground="#455A64",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            text="⚡ Быстрый прокси",
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
             command=self.run_find_proxy_thread
         )
-        btn_find_proxy.pack(side="left", padx=4)
+        btn_find_proxy.pack(side="left", padx=3)
 
         self.btn_watchdog = tk.Button(
             r2,
-            text="🐕 Watchdog: ВКЛЮЧЕН",
-            font=("Segoe UI", 9, "bold"),
-            bg="#1B5E20",
-            fg="white",
-            activebackground="#2E7D32",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            text="🐕 Watchdog: ВКЛ",
+            font=(FONT_FAMILY, 9, "bold"),
+            highlightbackground=BG_MAIN,
             command=self.toggle_watchdog
         )
-        self.btn_watchdog.pack(side="left", padx=4)
+        self.btn_watchdog.pack(side="left", padx=3)
 
         btn_worker = tk.Button(
             r2,
-            text="☁️ Cloudflare L7 Relay",
-            font=("Segoe UI", 9),
-            bg="#BF360C",
-            fg="white",
-            activebackground="#D84315",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            text="☁️ Cloudflare L7",
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
             command=self.show_worker_dialog
         )
-        btn_worker.pack(side="left", padx=4)
+        btn_worker.pack(side="left", padx=3)
 
         btn_github = tk.Button(
             r2,
             text="🚀 GitHub",
-            font=("Segoe UI", 9, "bold"),
-            bg="#24292E",
-            fg="white",
-            activebackground="#3F4448",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
             command=self.show_github_dialog
         )
-        btn_github.pack(side="left", padx=4)
+        btn_github.pack(side="left", padx=3)
 
         btn_diag = tk.Button(
             r2,
-            text="🔍 Диагностика сети",
-            font=("Segoe UI", 9),
-            bg="#37474F",
-            fg=TEXT_MAIN,
-            activebackground="#455A64",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            text="🔍 Диагностика",
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
             command=self.run_diagnostics_thread
         )
-        btn_diag.pack(side="left", padx=4)
+        btn_diag.pack(side="left", padx=3)
 
         btn_elevate = tk.Button(
             r2,
-            text="🔑 Администратор",
-            font=("Segoe UI", 9),
-            bg="#4A148C",
-            fg="white",
-            activebackground="#6A1B9A",
-            activeforeground="white",
-            relief="flat",
-            padx=10,
-            pady=5,
+            text="🔑 sudo / Admin",
+            font=(FONT_FAMILY, 9, "bold"),
+            highlightbackground=BG_MAIN,
             command=lambda: elevate_process([])
         )
-        btn_elevate.pack(side="right", padx=(4, 0))
+        btn_elevate.pack(side="right", padx=(3, 0))
 
     def create_console(self):
         console_frame = tk.Frame(self, bg=BG_MAIN, padx=20, pady=5)
-        console_frame.pack(fill="both", expand=True)
+        console_frame.pack(side="top", fill="both", expand=True)
 
-        tk.Label(
+        CanvasLabel(
             console_frame,
             text="Лог операций и статус выполнения:",
-            font=("Segoe UI", 9, "bold"),
+            font_spec=(FONT_FAMILY, 9, "bold"),
             bg=BG_MAIN,
-            fg=TEXT_MUTED
-        ).pack(anchor="w", pady=(0, 2))
+            fg=TEXT_MUTED,
+            height=20
+        ).pack(fill="x", pady=(0, 4))
 
-        self.console = scrolledtext.ScrolledText(
+        # Text widget configured as read-only with vibrant terminal font
+        self.console = tk.Text(
             console_frame,
             bg=BG_CONSOLE,
-            fg=TEXT_MAIN,
-            font=("Consolas", 10),
+            fg="#A6E3A1",
+            font=(FONT_MONO, 10),
             relief="flat",
             padx=10,
             pady=10,
-            state="disabled",
             highlightbackground=BG_CARD_BORDER,
-            highlightthickness=1
+            highlightthickness=1,
+            insertbackground=TEXT_WHITE,
+            wrap="word"
         )
-        self.console.pack(fill="both", expand=True)
+        self.console.bind("<Key>", lambda e: "break" if e.keysym not in ("c", "C") or not (e.state & 4 or e.state & 8) else None)
+
+        scrollbar = tk.Scrollbar(console_frame, command=self.console.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.console.config(yscrollcommand=scrollbar.set)
+        self.console.pack(side="left", fill="both", expand=True)
 
     def toggle_watchdog(self):
         from tools.proxy_manager import watchdog_instance
         if watchdog_instance.running:
             watchdog_instance.stop()
-            self.btn_watchdog.config(text="🐕 Watchdog: ВЫКЛ", bg="#37474F")
+            self.btn_watchdog.config(text="🐕 Watchdog: ВЫКЛ")
         else:
             watchdog_instance.log_callback = lambda msg: self.log(msg)
-            watchdog_instance.failover_callback = lambda new_ip: self.after(100, self._refresh_dashboard)
+            watchdog_instance.failover_callback = lambda new_ip: self.refresh_dashboard_async()
             watchdog_instance.start()
-            self.btn_watchdog.config(text="🐕 Watchdog: ВКЛЮЧЕН", bg="#1B5E20")
+            self.btn_watchdog.config(text="🐕 Watchdog: ВКЛ")
 
     def show_worker_dialog(self):
         dialog = tk.Toplevel(self)
-        dialog.title("Настройка Cloudflare Worker L7 (Обход блокировки аккаунтов)")
-        dialog.geometry("680x420")
+        dialog.title("Настройка Cloudflare Worker L7")
+        dialog.geometry("680x400")
         dialog.configure(bg=BG_MAIN)
-        dialog.transient(self)
-        dialog.grab_set()
 
-        tk.Label(
+        CanvasLabel(
             dialog,
             text="☁️ Cloudflare Worker L7 Relay (Для 100% защиты русских аккаунтов)",
-            font=("Segoe UI", 12, "bold"),
+            font_spec=(FONT_FAMILY, 12, "bold"),
             bg=BG_MAIN,
-            fg=ACCENT_BLUE
-        ).pack(anchor="w", padx=15, pady=(15, 5))
+            fg=ACCENT_BLUE,
+            height=26
+        ).pack(fill="x", padx=15, pady=(15, 5))
 
-        desc = (
-            "Cloudflare Worker полностью устраняет проблему блокировки аккаунта Google в РФ,\n"
-            "перехватывая ответы API и подменяя статус 'ineligible' на 'eligible' на лету.\n\n"
-            "Готовый скрипт воркера находится в файле: tools/cloudflare_worker.js"
-        )
-        tk.Label(dialog, text=desc, font=("Segoe UI", 9), bg=BG_MAIN, fg=TEXT_MUTED, justify="left").pack(anchor="w", padx=15, pady=5)
+        CanvasLabel(dialog, text="Cloudflare Worker устраняет проблему блокировки аккаунта в РФ,", font_spec=(FONT_FAMILY, 9), bg=BG_MAIN, fg=TEXT_MUTED, height=18).pack(fill="x", padx=15)
+        CanvasLabel(dialog, text="перехватывая ответы API и подменяя статус ineligible на eligible на лету.", font_spec=(FONT_FAMILY, 9), bg=BG_MAIN, fg=TEXT_MUTED, height=18).pack(fill="x", padx=15)
+        CanvasLabel(dialog, text="Готовый скрипт воркера находится в файле: tools/cloudflare_worker.js", font_spec=(FONT_FAMILY, 9), bg=BG_MAIN, fg=TEXT_MUTED, height=18).pack(fill="x", padx=15, pady=(0, 10))
 
         f_url = tk.Frame(dialog, bg=BG_MAIN)
         f_url.pack(fill="x", padx=15, pady=10)
 
-        tk.Label(f_url, text="URL вашего Worker:", font=("Segoe UI", 10, "bold"), bg=BG_MAIN, fg=TEXT_MAIN).pack(anchor="w")
-        ent_url = tk.Entry(f_url, font=("Consolas", 10), bg=BG_CARD, fg=TEXT_MAIN, insertbackground=TEXT_MAIN)
+        CanvasLabel(f_url, text="URL вашего Worker:", font_spec=(FONT_FAMILY, 10, "bold"), bg=BG_MAIN, fg=TEXT_WHITE, height=20).pack(fill="x")
+        ent_url = tk.Entry(f_url, font=(FONT_MONO, 10), bg=BG_CARD, fg=TEXT_WHITE, insertbackground=TEXT_WHITE)
         ent_url.pack(fill="x", pady=5)
         
-        # Текущий URL
         cur_url = os.environ.get("CLOUD_CODE_URL", "https://daily-cloudcode-pa.googleapis.com")
         ent_url.insert(0, cur_url)
 
@@ -400,38 +414,42 @@ class AntigravityUnlockerApp(tk.Tk):
         btn_f = tk.Frame(dialog, bg=BG_MAIN)
         btn_f.pack(fill="x", padx=15, pady=15)
 
-        tk.Button(btn_f, text="💾 Применить Worker URL", bg="#2E7D32", fg="white", font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=apply_worker_url).pack(side="left")
-        tk.Button(btn_f, text="🔄 Сброс на дефолт", bg="#C62828", fg="white", font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=reset_worker_url).pack(side="left", padx=10)
-        tk.Button(btn_f, text="Закрыть", bg="#37474F", fg="white", font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=dialog.destroy).pack(side="right")
+        tk.Button(btn_f, text="💾 Применить Worker URL", command=apply_worker_url, highlightbackground=BG_MAIN).pack(side="left")
+        tk.Button(btn_f, text="🔄 Сброс на дефолт", command=reset_worker_url, highlightbackground=BG_MAIN).pack(side="left", padx=10)
+        tk.Button(btn_f, text="Закрыть", command=dialog.destroy, highlightbackground=BG_MAIN).pack(side="right")
+
+        dialog.update_idletasks()
+        try:
+            dialog.transient(self)
+            dialog.grab_set()
+            dialog.focus_set()
+        except Exception:
+            pass
 
     def show_github_dialog(self):
         dialog = tk.Toplevel(self)
-        dialog.title("Публикация на GitHub (Open Source)")
-        dialog.geometry("680x420")
+        dialog.title("Публикация на GitHub")
+        dialog.geometry("680x380")
         dialog.configure(bg=BG_MAIN)
-        dialog.transient(self)
-        dialog.grab_set()
 
-        tk.Label(
+        CanvasLabel(
             dialog,
             text="🚀 Публикация Antigravity Unlocker на ваш GitHub",
-            font=("Segoe UI", 12, "bold"),
+            font_spec=(FONT_FAMILY, 12, "bold"),
             bg=BG_MAIN,
-            fg=ACCENT_BLUE
-        ).pack(anchor="w", padx=15, pady=(15, 5))
+            fg=ACCENT_BLUE,
+            height=26
+        ).pack(fill="x", padx=15, pady=(15, 5))
 
-        desc = (
-            "1. Создайте пустой публичный репозиторий на github.com/new (без README/.gitignore)\n"
-            "2. Вставьте ссылку на ваш репозиторий ниже\n"
-            "3. Нажмите кнопку «Опубликовать на GitHub» — программа сама отправит все файлы!"
-        )
-        tk.Label(dialog, text=desc, font=("Segoe UI", 9), bg=BG_MAIN, fg=TEXT_MUTED, justify="left").pack(anchor="w", padx=15, pady=5)
+        CanvasLabel(dialog, text="1. Создайте пустой репозиторий на github.com/new (без README)", font_spec=(FONT_FAMILY, 9), bg=BG_MAIN, fg=TEXT_MUTED, height=18).pack(fill="x", padx=15)
+        CanvasLabel(dialog, text="2. Вставьте ссылку на ваш репозиторий ниже", font_spec=(FONT_FAMILY, 9), bg=BG_MAIN, fg=TEXT_MUTED, height=18).pack(fill="x", padx=15)
+        CanvasLabel(dialog, text="3. Нажмите кнопку «Опубликовать» — проект будет выгружен автоматически!", font_spec=(FONT_FAMILY, 9), bg=BG_MAIN, fg=TEXT_MUTED, height=18).pack(fill="x", padx=15, pady=(0, 10))
 
         f_url = tk.Frame(dialog, bg=BG_MAIN)
         f_url.pack(fill="x", padx=15, pady=10)
 
-        tk.Label(f_url, text="Ссылка на ваш GitHub репозиторий (.git):", font=("Segoe UI", 10, "bold"), bg=BG_MAIN, fg=TEXT_MAIN).pack(anchor="w")
-        ent_url = tk.Entry(f_url, font=("Consolas", 10), bg=BG_CARD, fg=TEXT_MAIN, insertbackground=TEXT_MAIN)
+        CanvasLabel(f_url, text="Ссылка на ваш GitHub репозиторий (.git):", font_spec=(FONT_FAMILY, 10, "bold"), bg=BG_MAIN, fg=TEXT_WHITE, height=20).pack(fill="x")
+        ent_url = tk.Entry(f_url, font=(FONT_MONO, 10), bg=BG_CARD, fg=TEXT_WHITE, insertbackground=TEXT_WHITE)
         ent_url.pack(fill="x", pady=5)
         ent_url.insert(0, "https://github.com/ВАШ_ЛОГИН/antigravity-unlocker.git")
 
@@ -446,17 +464,16 @@ class AntigravityUnlockerApp(tk.Tk):
                 self.log("\n" + "=" * 50)
                 self.log(f"🚀 Публикация проекта на GitHub ({url})...")
                 import subprocess
-                # Ensure repo and add remote
                 subprocess.run(["git", "remote", "remove", "origin"], capture_output=True)
                 subprocess.run(["git", "remote", "add", "origin", url], capture_output=True)
                 res = subprocess.run(["git", "push", "-u", "origin", "main"], capture_output=True, text=True)
                 if res.returncode == 0:
                     self.log("🎉 [УСПЕХ] Проект успешно опубликован на GitHub!")
                     self.log(f"  Ссылка: {url.replace('.git', '')}")
-                    self.after(100, lambda: messagebox.showinfo("Успех", f"Репозиторий успешно опубликован на GitHub!\n\n{url.replace('.git', '')}"))
+                    self.msg_queue.put(("msgbox_info", ("Успех", f"Репозиторий успешно опубликован на GitHub!\n\n{url.replace('.git', '')}")))
                 else:
                     self.log(f"[-] Ошибка отправки:\n{res.stderr}")
-                    self.after(100, lambda: messagebox.showerror("Ошибка публикации", f"Не удалось отправить репозиторий:\n{res.stderr}"))
+                    self.msg_queue.put(("msgbox_error", ("Ошибка публикации", f"Не удалось отправить репозиторий:\n{res.stderr}")))
                 self.log("=" * 50)
 
             threading.Thread(target=_push_worker, daemon=True).start()
@@ -464,11 +481,24 @@ class AntigravityUnlockerApp(tk.Tk):
         btn_f = tk.Frame(dialog, bg=BG_MAIN)
         btn_f.pack(fill="x", padx=15, pady=15)
 
-        tk.Button(btn_f, text="🚀 Опубликовать на GitHub", bg="#2E7D32", fg="white", font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=do_publish).pack(side="left")
-        tk.Button(btn_f, text="Закрыть", bg="#37474F", fg="white", font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=dialog.destroy).pack(side="right")
+        tk.Button(btn_f, text="🚀 Опубликовать на GitHub", command=do_publish, highlightbackground=BG_MAIN).pack(side="left")
+        tk.Button(btn_f, text="Закрыть", command=dialog.destroy, highlightbackground=BG_MAIN).pack(side="right")
+
+        dialog.update_idletasks()
+        try:
+            dialog.transient(self)
+            dialog.grab_set()
+            dialog.focus_set()
+        except Exception:
+            pass
 
     def refresh_dashboard_async(self):
         threading.Thread(target=self._refresh_dashboard, daemon=True).start()
+
+    def _apply_dashboard_state(self, patch_text, patch_fg, hosts_text, hosts_fg, ping_text, ping_fg):
+        self.lbl_patch_status.config(text=patch_text, fg=patch_fg)
+        self.lbl_hosts_status.config(text=hosts_text, fg=hosts_fg)
+        self.lbl_ping_status.config(text=ping_text, fg=ping_fg)
 
     def _refresh_dashboard(self):
         # 1. Check Binary Patches
@@ -485,29 +515,31 @@ class AntigravityUnlockerApp(tk.Tk):
                 all_patched = False
 
         if all_patched and bins:
-            self.lbl_patch_status.config(text="ПРОПАТЧЕН [OK]", fg=ACCENT_GREEN)
+            patch_text, patch_fg = "ПРОПАТЧЕН [OK]", ACCENT_GREEN
         else:
-            self.lbl_patch_status.config(text="ТРЕБУЕТСЯ ПАТЧ", fg=ACCENT_RED)
+            patch_text, patch_fg = "ТРЕБУЕТСЯ ПАТЧ", ACCENT_RED
 
         # 2. Check Hosts Pin
         pinned_ip = get_current_pinned_ip()
         if pinned_ip:
-            self.lbl_hosts_status.config(text=f"АКТИВЕН ({pinned_ip})", fg=ACCENT_GREEN)
+            hosts_text, hosts_fg = f"АКТИВЕН ({pinned_ip})", ACCENT_GREEN
         else:
-            self.lbl_hosts_status.config(text="НЕ ПРИВЯЗАН", fg=TEXT_MUTED)
+            hosts_text, hosts_fg = "НЕ ПРИВЯЗАН", TEXT_MUTED
 
         # 3. Check Gemini API Ping
         target_host = "cloudcode-pa.googleapis.com"
-        probe_target_ip = pinned_ip or "94.130.180.225"
+        probe_target_ip = pinned_ip or "45.88.174.252"
         ok, lat, err = probe_single_host(probe_target_ip, target_host, timeout=2.0)
         if ok:
-            self.lbl_ping_status.config(text=f"OK ({lat:.0f} ms)", fg=ACCENT_GREEN)
+            ping_text, ping_fg = f"OK ({lat:.0f} ms)", ACCENT_GREEN
         else:
-            self.lbl_ping_status.config(text="ТАЙМАУТ / ОШИБКА", fg=ACCENT_RED)
+            ping_text, ping_fg = "ТАЙМАУТ / ОШИБКА", ACCENT_RED
+
+        self.msg_queue.put(("dashboard", (patch_text, patch_fg, hosts_text, hosts_fg, ping_text, ping_fg)))
 
     def run_unlock_thread(self):
         if not is_admin():
-            if messagebox.askyesno("Требуются права Администратора", "Для применения анлока (запись в hosts и настройка сети) требуются права Администратора.\n\nПерезапустить приложение с правами Администратора?"):
+            if messagebox.askyesno("Требуются права Администратора", "Для применения анлока (запись в hosts и настройка сети) требуются права Администратора / sudo.\n\nПерезапустить приложение с правами Администратора?"):
                 elevate_process([])
             return
 
@@ -527,13 +559,13 @@ class AntigravityUnlockerApp(tk.Tk):
             best_ip = find_best_proxy(verbose=False)
             self.log(f"  [+] Выбран лучший IP: {best_ip}")
 
-            # 3. Pin hosts & NRPT clean
-            self.log(f"[3/5] Привязка хостов в hosts к {best_ip} и очистка NRPT...")
+            # 3. Pin hosts
+            self.log(f"[3/5] Привязка хостов в hosts к {best_ip}...")
             ok, msg = pin_hosts(best_ip)
             self.log(f"  {'[+]' if ok else '[-]'} {msg}")
 
             # 4. Binary patch
-            self.log("[4/5] Патчинг Language Server / agy...")
+            self.log("[4/5] Патчинг Language Server / agy и CodeSign...")
             patch_binaries()
 
             # 5. Settings & IPv4
@@ -545,22 +577,22 @@ class AntigravityUnlockerApp(tk.Tk):
             # Запуск Watchdog
             from tools.proxy_manager import watchdog_instance
             watchdog_instance.log_callback = lambda msg: self.log(msg)
-            watchdog_instance.failover_callback = lambda new_ip: self.after(100, self._refresh_dashboard)
+            watchdog_instance.failover_callback = lambda new_ip: self.refresh_dashboard_async()
             watchdog_instance.start()
-            self.btn_watchdog.config(text="🐕 Watchdog: ВКЛЮЧЕН", bg="#1B5E20")
+            self.msg_queue.put(("watchdog_btn", "🐕 Watchdog: ВКЛ"))
 
             self.log("="*50)
             self.log("🎉 [УСПЕХ] Анлок успешно активирован! Antigravity готова к работе без VPN.")
-            messagebox.showinfo("Успех", "Разблокировка успешно применена!\n\nВсе запросы зафиксированы на быстрый зарубежный SNI-прокси.\nWatchdog активен и защитит от сбоев.")
+            self.msg_queue.put(("msgbox_info", ("Успех", "Разблокировка успешно применена!\n\nВсе запросы зафиксированы на быстрый зарубежный SNI-прокси.\nWatchdog активен и защитит от сбоев.")))
         except Exception as e:
             self.log(f"[-] Ошибка во время выполнения: {e}")
-            messagebox.showerror("Ошибка", f"Произошла ошибка: {e}")
+            self.msg_queue.put(("msgbox_error", ("Ошибка", f"Произошла ошибка: {e}")))
         finally:
-            self._refresh_dashboard()
+            self.refresh_dashboard_async()
 
     def run_rollback_thread(self):
         if not is_admin():
-            if messagebox.askyesno("Требуются права Администратора", "Для отката изменений требуются права Администратора.\n\nПерезапустить приложение с правами Администратора?"):
+            if messagebox.askyesno("Требуются права Администратора", "Для отката изменений требуются права Администратора / sudo.\n\nПерезапустить приложение с правами Администратора?"):
                 elevate_process([])
             return
 
@@ -575,16 +607,16 @@ class AntigravityUnlockerApp(tk.Tk):
         try:
             from tools.proxy_manager import watchdog_instance
             watchdog_instance.stop()
-            self.btn_watchdog.config(text="🐕 Watchdog: ВЫКЛ", bg="#37474F")
+            self.msg_queue.put(("watchdog_btn", "🐕 Watchdog: ВЫКЛ"))
 
             execute_rollback()
             self.log("="*50)
             self.log("✅ [УСПЕХ] Все изменения полностью отменены.")
-            messagebox.showinfo("Откат завершен", "Система успешно возвращена в исходное состояние.")
+            self.msg_queue.put(("msgbox_info", ("Откат завершен", "Система успешно возвращена в исходное состояние.")))
         except Exception as e:
             self.log(f"[-] Ошибка отката: {e}")
         finally:
-            self._refresh_dashboard()
+            self.refresh_dashboard_async()
 
     def run_backup_thread(self):
         threading.Thread(target=self._do_backup, daemon=True).start()
@@ -593,7 +625,7 @@ class AntigravityUnlockerApp(tk.Tk):
         self.log("\n[+] Создание резервной копии...")
         bdir, _ = create_backup("manual")
         self.log(f"[+] Бэкап создан: {bdir}")
-        messagebox.showinfo("Бэкап создан", f"Резервная копия успешно создана в:\n{bdir}")
+        self.msg_queue.put(("msgbox_info", ("Бэкап создан", f"Резервная копия успешно создана в:\n{bdir}")))
 
     def run_find_proxy_thread(self):
         threading.Thread(target=self._do_find_proxy, daemon=True).start()
@@ -602,7 +634,7 @@ class AntigravityUnlockerApp(tk.Tk):
         self.log("\n[+] Тестирование всех прокси серверов...")
         best_ip = find_best_proxy(verbose=True)
         self.log(f"[+] Самый быстрый прокси: {best_ip}")
-        self._refresh_dashboard()
+        self.refresh_dashboard_async()
 
     def run_diagnostics_thread(self):
         threading.Thread(target=self._do_diagnostics, daemon=True).start()
@@ -615,7 +647,6 @@ class AntigravityUnlockerApp(tk.Tk):
             check_tls_connectivity, check_binary_patches
         )
         
-        # Capture stdout
         old_stdout = sys.stdout
         class StdoutRedirector:
             def __init__(self, app):
@@ -641,49 +672,151 @@ class AntigravityUnlockerApp(tk.Tk):
         backups = list_backups()
         dialog = tk.Toplevel(self)
         dialog.title("Управление резервными копиями (Бэкапы)")
-        dialog.geometry("650x400")
+        dialog.geometry("800x540")
+        dialog.minsize(720, 460)
         dialog.configure(bg=BG_MAIN)
-        dialog.transient(self)
-        dialog.grab_set()
 
-        tk.Label(dialog, text="Список доступных резервных копий:", font=("Segoe UI", 11, "bold"), bg=BG_MAIN, fg=TEXT_MAIN).pack(anchor="w", padx=15, pady=10)
+        # Header Title
+        CanvasLabel(
+            dialog,
+            text="📁 Список доступных резервных копий:",
+            font_spec=(FONT_FAMILY, 13, "bold"),
+            bg=BG_MAIN,
+            fg=ACCENT_BLUE,
+            height=28
+        ).pack(fill="x", padx=20, pady=(15, 2))
 
-        tree_frame = tk.Frame(dialog, bg=BG_MAIN)
-        tree_frame.pack(fill="both", expand=True, padx=15, pady=5)
+        CanvasLabel(
+            dialog,
+            text="Нажмите «Восстановить» на карточке нужного бэкапа для отката файлов.",
+            font_spec=(FONT_FAMILY, 9),
+            bg=BG_MAIN,
+            fg=TEXT_MUTED,
+            height=20
+        ).pack(fill="x", padx=20, pady=(0, 10))
 
-        cols = ("name", "created", "files")
-        tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=8)
-        tree.heading("name", text="Имя бэкапа")
-        tree.heading("created", text="Дата создания")
-        tree.heading("files", text="Файлов")
-        tree.column("name", width=220)
-        tree.column("created", width=180)
-        tree.column("files", width=80)
+        # Canvas with Scrollable Cards
+        outer_frame = tk.Frame(dialog, bg=BG_CARD, padx=2, pady=2, relief="solid", bd=1)
+        outer_frame.pack(fill="both", expand=True, padx=20, pady=5)
 
-        for name, bpath, manifest in backups:
-            tree.insert("", "end", values=(name, manifest.get("created_at", "N/A"), len(manifest.get("files", {}))), tags=(bpath,))
+        canvas = tk.Canvas(outer_frame, bg=BG_CONSOLE, highlightthickness=0)
+        scrollbar = tk.Scrollbar(outer_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=BG_CONSOLE)
 
-        tree.pack(side="left", fill="both", expand=True)
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
 
-        btn_box = tk.Frame(dialog, bg=BG_MAIN, pady=10)
-        btn_box.pack(fill="x", padx=15)
+        canvas_frame_id = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        
+        def _on_canvas_configure(e):
+            canvas.itemconfig(canvas_frame_id, width=e.width)
+        canvas.bind("<Configure>", _on_canvas_configure)
 
-        def restore_selected():
-            sel = tree.selection()
-            if not sel:
-                messagebox.showwarning("Внимание", "Выберите бэкап из списка!")
-                return
-            item = tree.item(sel[0])
-            bpath = tree.item(sel[0], "tags")[0]
-            if messagebox.askyesno("Восстановление", f"Восстановить файлы из бэкапа {item['values'][0]}?"):
-                dialog.destroy()
-                threading.Thread(target=lambda: (restore_backup(bpath), self._refresh_dashboard()), daemon=True).start()
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
-        btn_restore = tk.Button(btn_box, text="🔄 Восстановить выбранный бэкап", bg="#2E7D32", fg="white", font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=restore_selected)
-        btn_restore.pack(side="left")
+        def make_restore_handler(b_path, b_name, b_date):
+            def _handler():
+                if messagebox.askyesno("Восстановление бэкапа", f"Восстановить систему из бэкапа:\n\n{b_name}\n({b_date})?"):
+                    dialog.destroy()
+                    threading.Thread(
+                        target=lambda: (restore_backup(b_path), self.refresh_dashboard_async()),
+                        daemon=True
+                    ).start()
+            return _handler
 
-        btn_close = tk.Button(btn_box, text="Закрыть", bg="#37474F", fg="white", font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=dialog.destroy)
-        btn_close.pack(side="right")
+        if not backups:
+            no_b = tk.Frame(scrollable_frame, bg=BG_CONSOLE, pady=40)
+            no_b.pack(fill="x")
+            CanvasLabel(no_b, text="Резервных копий пока нет", font_spec=(FONT_FAMILY, 12, "bold"), bg=BG_CONSOLE, fg=TEXT_MUTED, height=30).pack()
+        else:
+            for name, bpath, manifest in backups:
+                created = str(manifest.get("created_at", "N/A"))[:19].replace("T", " ")
+                files_dict = manifest.get("files", {})
+                files_list = ", ".join(files_dict.keys()) if files_dict else "нет данных"
+                
+                # Card Container
+                card = tk.Frame(
+                    scrollable_frame,
+                    bg=BG_CARD,
+                    padx=14,
+                    pady=12,
+                    relief="solid",
+                    bd=1,
+                    highlightbackground=BG_CARD_BORDER
+                )
+                card.pack(fill="x", padx=12, pady=6)
+
+                # Info Left
+                info_left = tk.Frame(card, bg=BG_CARD)
+                info_left.pack(side="left", fill="x", expand=True)
+
+                is_orig = "initial_original" in name
+                title_color = ACCENT_YELLOW if is_orig else ACCENT_GREEN
+                title_badge = " [ЗАВОДСКИЕ ОРИГИНАЛЫ GOOGLE]" if is_orig else ""
+
+                CanvasLabel(
+                    info_left,
+                    text=f"🛡️ {name}{title_badge}",
+                    font_spec=(FONT_FAMILY, 11, "bold"),
+                    bg=BG_CARD,
+                    fg=title_color,
+                    height=24
+                ).pack(fill="x")
+
+                CanvasLabel(
+                    info_left,
+                    text=f"📅 Дата: {created}   •   Файлов: {len(files_dict)} ({files_list})",
+                    font_spec=(FONT_FAMILY, 9),
+                    bg=BG_CARD,
+                    fg=TEXT_MUTED,
+                    height=20
+                ).pack(fill="x", pady=(2, 0))
+
+                # Restore Button Right
+                btn_restore = tk.Button(
+                    card,
+                    text="🔄 Восстановить",
+                    font=(FONT_FAMILY, 9, "bold"),
+                    highlightbackground=BG_CARD,
+                    command=make_restore_handler(bpath, name, created)
+                )
+                btn_restore.pack(side="right", padx=(10, 0))
+
+        # Bottom Bar
+        btn_box = tk.Frame(dialog, bg=BG_MAIN, pady=12)
+        btn_box.pack(fill="x", padx=20)
+
+        def create_new_backup():
+            dialog.destroy()
+            self.run_backup_thread()
+
+        tk.Button(
+            btn_box,
+            text="➕ Создать новый бэкап сейчас",
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
+            command=create_new_backup
+        ).pack(side="left")
+
+        tk.Button(
+            btn_box,
+            text="Закрыть",
+            font=(FONT_FAMILY, 9),
+            highlightbackground=BG_MAIN,
+            command=dialog.destroy
+        ).pack(side="right")
+
+        dialog.update_idletasks()
+        try:
+            dialog.transient(self)
+            dialog.grab_set()
+            dialog.focus_set()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     app = AntigravityUnlockerApp()

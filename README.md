@@ -6,12 +6,14 @@
 ### Полноценный комплекс для автономной работы Google Antigravity, Antigravity IDE и моделей Gemini в РФ без VPN
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://microsoft.com)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-black?style=for-the-badge&logo=apple&logoColor=white)](README_MACOS_LINUX.md)
+[![Linux](https://img.shields.io/badge/Linux-Ubuntu%20%7C%20Debian%20%7C%20Arch%20%7C%20Fedora-FCC624?style=for-the-badge&logo=linux&logoColor=black)](README_MACOS_LINUX.md)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Zero VPN](https://img.shields.io/badge/Traffic-Zero%20VPN-success?style=for-the-badge&logo=cloudflare&logoColor=white)](#)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=for-the-badge)](#)
 [![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](LICENSE)
 
-[**Быстрый запуск**](#-быстрый-запуск-в-1-клик) • [**Возможности**](#-ключевые-возможности) • [**Архитектура**](#-архитектура-и-защита) • [**Карта кода**](docs/CODE_MAP.md) • [**Безопасность**](docs/SECURITY.md) • [**FAQ**](docs/FAQ.md)
+[**Быстрый запуск**](#-быстрый-запуск-в-1-клик) • [**Руководство для macOS / Linux**](README_MACOS_LINUX.md) • [**Возможности**](#-ключевые-возможности) • [**Архитектура**](#-архитектура-и-защита) • [**Карта кода**](docs/CODE_MAP.md) • [**FAQ**](docs/FAQ.md)
 
 </div>
 
@@ -19,7 +21,7 @@
 
 ## 📌 О проекте
 
-**Antigravity Unlocker** — комплекс системной маршрутизации, изоляции DNS и бинарного патчинга для обеспечения беспрепятственной работы **Google Antigravity IDE**, CLI-утилиты `agy`, языкового сервера (`language_server.exe`) и моделей **Gemini / Claude** в условиях географических ограничений РФ/РБ.
+**Antigravity Unlocker** — кроссплатформенный комплекс системной маршрутизации, изоляции DNS и бинарного патчинга для обеспечения беспрепятственной работы **Google Antigravity IDE**, CLI-утилиты `agy`, языкового сервера (`language_server`) и моделей **Gemini / Claude** в условиях географических ограничений РФ/РБ. Поддерживает **Windows 10/11**, **macOS (Apple Silicon M-series & Intel)** и **Linux**.
 
 ### Главный принцип — Zero VPN:
 * 🚀 **Прямой интернет на полной скорости провайдера** для браузера, YouTube, игр, торрентов и мессенджеров.
@@ -32,32 +34,28 @@
 | Функция | Описание |
 | :--- | :--- |
 | ⚡ **Anti-Leak Hosts Pinning** | Принудительная привязка модельных эндпоинтов Google в `hosts` (100% защита от утечек в российские IP Google `172.217.x.x`). |
-| 🐕 **Smart Auto-Failover Watchdog** | Фоновый мониторинг порта 443. При сбоях (`10054 WSAECONNRESET`) автоматически переключает `hosts` на резервный живой узел за доли секунды. |
-| 🧬 **Длина-сохраняющий бинарный патч** | Модификация Language Server (`ineligible` ➔ `inexigible`, ровно 10 байт) без повреждения структуры PE и Protobuf. |
+| 🐕 **Smart Auto-Failover Watchdog** | Фоновый мониторинг порта 443. При сбоях автоматически переключает `hosts` на резервный живой узел за доли секунды. |
+| 🧬 **Длина-сохраняющий бинарный патч** | Модификация Language Server (`ineligible` ➔ `inexigible`, ровно 10 байт) без повреждения структуры PE/Mach-O/ELF и Protobuf. |
+| 🍏 **macOS Auto-CodeSign** | Автоматическое снятие карантина (`xattr -cr`) и ad-hoc переподпись Mach-O для защиты от сбоев на Apple Silicon. |
 | ☁️ **Cloudflare Worker L7 Relay** | Встроенный перехватчик эндпоинта `:loadCodeAssist` для снятия региональных ограничений профиля Google. |
 | 🛡️ **Автоматические бэкапы** | Создание контрольных точек с SHA-256 манифестом перед любыми изменениями и откат в 1 клик. |
-| 🖥️ **Современный Dark GUI** | Графический интерфейс с живым дашбордом, замером пинга, логами и автозапросом UAC. |
+| 🖥️ **Современный Dark GUI & CLI** | Графический интерфейс с живым дашбордом + удобный интерактивный CLI-скрипт `unlock.sh`. |
 
 ---
 
 ## 🖥️ Быстрый запуск в 1 клик
 
-### 🛠️ Вариант 1: Официальный Установщик Windows (Setup Installer)
-Скачайте готовый установщик **[`release/AntigravityUnlocker_Setup.exe`](release/AntigravityUnlocker_Setup.exe)**:
-1. Запустите `AntigravityUnlocker_Setup.exe`.
-2. Следуйте подсказкам мастера (он автоматически создаст ярлыки на Рабочем столе и в меню «Пуск», а также зарегистрирует программу в Windows).
-3. Нажмите **«⚡ АКТИВИРОВАТЬ АНЛОК»** при первом запуске!
+### 🍏 На macOS и Linux
+1. **Через лаунчер macOS:** дважды кликните на **[`Запустить_Анлокер_Mac.command`](Запустить_Анлокер_Mac.command)** в папке проекта.
+2. **Через Терминал:** запустите **[`./unlock.sh`](unlock.sh)** (или `./unlock.sh --apply` для мгновенной активации).
+3. Подробное руководство см. в файле **[`README_MACOS_LINUX.md`](README_MACOS_LINUX.md)**.
 
 ---
 
-### 📦 Вариант 2: Портативный Standalone `.exe` (Без установки)
-Скачайте готовый исполняемый файл **[`release/AntigravityUnlocker.exe`](release/AntigravityUnlocker.exe)**:
-1. Запустите `AntigravityUnlocker.exe` (он автоматически запросит права Администратора через встроенный манифест UAC).
-2. Нажмите **«⚡ АКТИВИРОВАТЬ АНЛОК»**.
-
----
-
-### 🐍 Вариант 2: Графический интерфейс из исходного кода (GUI)
+### 🪟 На Windows
+* **Вариант 1 (Инсталлятор):** скачайте и запустите **[`release/AntigravityUnlocker_Setup.exe`](release/AntigravityUnlocker_Setup.exe)**.
+* **Вариант 2 (Standalone `.exe`):** запустите **[`release/AntigravityUnlocker.exe`](release/AntigravityUnlocker.exe)**.
+* **Вариант 3 (Из исходников):** запустите **[`Запустить_Анлокер.bat`](Запустить_Анлокер.bat)** или `python gui.py`.
 1. Запустите лаунчер **[`Запустить_Анлокер.bat`](Запустить_Анлокер.bat)** (или выполните `python gui.py`).
 2. Нажмите большую зеленую кнопку **«⚡ АКТИВИРОВАТЬ АНЛОК»**.
 3. Дождитесь успешного статуса на всех 4 индикаторах и откройте **Antigravity IDE**!

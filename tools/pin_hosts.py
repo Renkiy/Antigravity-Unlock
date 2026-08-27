@@ -2,21 +2,37 @@ import os
 import sys
 import subprocess
 
-HOSTS_PATH = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc", "hosts")
+HOSTS_PATH = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc", "hosts") if sys.platform == "win32" else "/etc/hosts"
 
 BEGIN_MARKER = "# === ANTIGRAVITY_UNLOCKER_PIN_START ==="
 END_MARKER = "# === ANTIGRAVITY_UNLOCKER_PIN_END ==="
 
 # Working SNI-proxies verified on 2026-08-25:
-# 45.88.174.254 (gemini-pool.comss.one) - TLS verified for all hosts
-# 87.228.47.194 (xbox-dns) - TLS verified for generativelanguage
+# 45.88.174.252 (comss-node-nl-3)
 PINNED_ENTRIES = [
-    ("generativelanguage.googleapis.com", "45.88.174.254"),
-    ("daily-cloudcode-pa.googleapis.com", "45.88.174.254"),
-    ("antigravity-unleash.goog", "45.88.174.254"),
-    ("cloudaicompanion.googleapis.com", "45.88.174.254"),
-    ("cloudcode-pa.googleapis.com", "45.88.174.254"),
+    ("generativelanguage.googleapis.com", "45.88.174.252"),
+    ("daily-cloudcode-pa.googleapis.com", "45.88.174.252"),
+    ("antigravity-unleash.goog", "45.88.174.252"),
+    ("cloudaicompanion.googleapis.com", "45.88.174.252"),
+    ("cloudcode-pa.googleapis.com", "45.88.174.252"),
+    ("jetski-webchannel.googleapis.com", "45.88.174.252"),
+    ("alkalimakersuite-pa.googleapis.com", "45.88.174.252"),
+    ("aistudio.google.com", "45.88.174.252"),
+    ("antigravity.google", "45.88.174.252")
 ]
+
+def flush_dns():
+    if sys.platform == "darwin":
+        subprocess.run(["dscacheutil", "-flushcache"], capture_output=True)
+        subprocess.run(["killall", "-HUP", "mDNSResponder"], capture_output=True)
+    elif sys.platform == "win32":
+        subprocess.run(["ipconfig", "/flushdns"], capture_output=True)
+    else:
+        for cmd in [["resolvectl", "flush-caches"], ["systemd-resolve", "--flush-caches"]]:
+            try:
+                subprocess.run(cmd, capture_output=True)
+            except Exception:
+                pass
 
 def apply_hosts_pin():
     print(f"[+] Чтение {HOSTS_PATH}...")
@@ -52,11 +68,11 @@ def apply_hosts_pin():
     try:
         with open(HOSTS_PATH, "w", encoding="utf-8") as f:
             f.write(new_content)
-        print("  [+] Hosts файл успешно обновлен с привязкой к активному прокси 45.88.174.254!")
-        subprocess.run(["ipconfig", "/flushdns"], capture_output=True)
+        print("  [+] Hosts файл успешно обновлен с привязкой к активному прокси 45.88.174.252!")
+        flush_dns()
         return True
     except PermissionError:
-        print("  [-] Требуются права Администратора для записи в hosts файл.")
+        print("  [-] Требуются права Администратора / sudo для записи в hosts файл.")
         return False
     except Exception as e:
         print(f"  [-] Ошибка записи hosts: {e}")
@@ -88,7 +104,7 @@ def remove_hosts_pin():
         with open(HOSTS_PATH, "w", encoding="utf-8") as f:
             f.write(new_content)
         print("  [+] Записи анлокера удалены из hosts.")
-        subprocess.run(["ipconfig", "/flushdns"], capture_output=True)
+        flush_dns()
         return True
     except Exception as e:
         print(f"  [-] Ошибка записи: {e}")

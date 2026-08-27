@@ -25,14 +25,15 @@ TARGET_DOMAINS = [
 # Известные префиксы прямых серверов Google в РФ / СНГ, блокирующих по Geo-IP
 KNOWN_DIRECT_GOOGLE_PREFIXES = ("172.217.", "142.250.", "216.58.", "173.194.", "74.125.")
 
+HOSTS_PATH = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc", "hosts") if sys.platform == "win32" else "/etc/hosts"
+
 def check_hosts_pinning():
     print("=" * 60)
-    print("[1] Проверка привязки хостов в файле hosts:")
-    hosts_path = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc", "hosts")
+    print(f"[1] Проверка привязки хостов в файле {HOSTS_PATH}:")
     found_pins = []
-    if os.path.exists(hosts_path):
+    if os.path.exists(HOSTS_PATH):
         try:
-            with open(hosts_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(HOSTS_PATH, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
             for line in lines:
                 line_str = line.strip()
@@ -51,6 +52,8 @@ def check_hosts_pinning():
         print("  [!] Внимание: Привязки в hosts отсутствуют! Используется системный DNS.")
 
 def check_nrpt_rules():
+    if sys.platform != "win32":
+        return
     print("=" * 60)
     print("[2] Проверка таблицы правил NRPT (Windows Name Resolution Policy Table):")
     cmd = ["powershell", "-NoProfile", "-Command", "Get-DnsClientNrptRule -ErrorAction SilentlyContinue | Select-Object Namespace, NameServers, Comment | Format-Table -AutoSize"]
@@ -67,7 +70,7 @@ def check_nrpt_rules():
 
 def check_dns_resolving():
     print("=" * 60)
-    print("[3] Проверка разрешения целевых доменов (Анализ IP-адресов):")
+    print("[2/3] Проверка разрешения целевых доменов (Анализ IP-адресов):")
     leak_detected = False
     for domain in TARGET_DOMAINS:
         try:
@@ -85,11 +88,11 @@ def check_dns_resolving():
             print(f"  [-] {domain:35} -> ОШИБКА: {e}")
     
     if leak_detected:
-        print("\n  [ВНИМАНИЕ] Обнаружена утечка прямых IP Google! Рекомендуется выполнить 'python tools/unlocker_core.py'.")
+        print("\n  [ВНИМАНИЕ] Обнаружена утечка прямых IP Google! Рекомендуется активировать анлокер.")
 
 def check_tls_connectivity():
     print("=" * 60)
-    print("[4] Проверка TCP и TLS 443 хэндшейка (Стриминг и API):")
+    print("[3/4] Проверка TCP и TLS 443 хэндшейка (Стриминг и API):")
     for domain in TARGET_DOMAINS[:4]:
         try:
             ctx = ssl.create_default_context()
@@ -107,17 +110,18 @@ def check_tls_connectivity():
 
 def check_binary_patches():
     print("=" * 60)
-    print("[5] Проверка бинарных патчей (Обход блокировки российских аккаунтов):")
-    local_app_data = os.environ.get("LOCALAPPDATA", "")
-    user_prof = os.environ.get("USERPROFILE", "")
+    print("[4/5] Проверка бинарных патчей (Обход блокировки российских аккаунтов):")
     
-    bin_paths = [
-        os.path.join(local_app_data, "Programs", "antigravity", "resources", "bin", "language_server.exe"),
-        os.path.join(local_app_data, "Programs", "antigravity", "resources", "bin", "agy.exe"),
-        os.path.join(local_app_data, "Programs", "Antigravity IDE", "resources", "app", "extensions", "antigravity", "bin", "language_server_windows_x64.exe"),
-        os.path.join(local_app_data, "Programs", "Antigravity IDE", "resources", "app", "extensions", "antigravity", "bin", "language_server.exe"),
-        os.path.join(user_prof, ".antigravity", "bin", "language_server.exe")
-    ]
+    # Import paths from unlocker_core
+    try:
+        from tools.unlocker_core import get_binary_paths
+        bin_paths = get_binary_paths()
+    except Exception:
+        home = os.path.expanduser("~")
+        bin_paths = [
+            "/Applications/Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm",
+            os.path.join(home, ".local", "bin", "agy")
+        ]
     
     found_any = False
     for bp in bin_paths:
@@ -131,6 +135,13 @@ def check_binary_patches():
                 print(f"  File: {os.path.basename(bp)} ({bp})")
                 print(f"    - 'ineligible' (оригинальный блок): {inel}")
                 print(f"    - 'inexigible' (патч аккаунта):      {inex}")
+                
+                # Check code signature on macOS
+                if sys.platform == "darwin":
+                    cs_res = subprocess.run(["codesign", "-v", bp], capture_output=True, text=True)
+                    cs_status = "ПОДПИСЬ ВАЛИДНА [OK]" if cs_res.returncode == 0 else f"ПОДПИСЬ ПОВРЕЖДЕНА (Нужен codesign): {cs_res.stderr.strip()}"
+                    print(f"    - macOS CodeSign: {cs_status}")
+
                 if inex > 0 and inel == 0:
                     print("    -> СТАТУС: ПОЛНОСТЬЮ ПРОПАТЧЕН [OK]")
                 elif inel > 0:
@@ -146,7 +157,8 @@ def check_binary_patches():
 if __name__ == "__main__":
     print("Комплексная диагностика Antigravity Unlocker...")
     check_hosts_pinning()
-    check_nrpt_rules()
+    if sys.platform == "win32":
+        check_nrpt_rules()
     check_dns_resolving()
     check_tls_connectivity()
     check_binary_patches()
